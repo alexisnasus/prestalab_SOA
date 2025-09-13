@@ -292,8 +292,6 @@ CREATE TABLE configuracion_sistema
   )
 ENGINE = InnoDB;
 
-CREATE INDEX configuracion_sistemaIDX1 ON configuracion_sistema(clave);
-
 -- ----------------------------------------------------------------------
 
 #EJEMPLOS DE CONFIGURACIONES (LLAVES Y EJEMPLOS DE VALORES):
