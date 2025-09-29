@@ -1,0 +1,85 @@
+version: "3.9"
+services:
+  db:
+    image: mysql:8.0
+    container_name: soa_db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: soa_db
+      MYSQL_USER: soa_user
+      MYSQL_PASSWORD: soa_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  gerep:
+    build: ./services/gerep
+    container_name: gerep
+    environment:
+      - DATABASE_URL=mysql+pymysql://soa_user:soa_password@db:3306/soa_db
+    depends_on:
+      - db
+    ports:
+      - "8001:8000"
+
+  lista:
+    build: ./services/lista
+    container_name: lista
+    environment:
+      - DATABASE_URL=mysql+pymysql://soa_user:soa_password@db:3306/soa_db
+    depends_on:
+      - db
+    ports:
+      - "8002:8000"
+
+  multa:
+    build: ./services/multa
+    container_name: multa
+    environment:
+      - DATABASE_URL=mysql+pymysql://soa_user:soa_password@db:3306/soa_db
+    depends_on:
+      - db
+    ports:
+      - "8003:8000"
+
+  notis:
+    build: ./services/notis
+    container_name: notis
+    environment:
+      - DATABASE_URL=mysql+pymysql://soa_user:soa_password@db:3306/soa_db
+    depends_on:
+      - db
+    ports:
+      - "8004:8000"
+
+  prart:
+    build: ./services/prart
+    container_name: prart
+    environment:
+      - DATABASE_URL=mysql+pymysql://soa_user:soa_password@db:3306/soa_db
+    depends_on:
+      - db
+    ports:
+      - "8005:8000"
+
+  regist:
+    build: ./services/regist
+    container_name: regist
+    environment:
+      - DATABASE_URL=mysql+pymysql://soa_user:soa_password@db:3306/soa_db
+    depends_on:
+      - db
+    ports:
+      - "8006:8000"
+
+  sugit:
+    build: ./services/sugit
+    container_name: sugit
+    environment:
+      - DATABASE_URL=mysql+pymysql://soa_user:soa_password@db:3306/soa_db
+    depends_on:
+      - db
+    ports:
+      - "8007:8000"
