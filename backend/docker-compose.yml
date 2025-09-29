@@ -16,7 +16,7 @@ services:
 
   gerep:
     build: ./services/gerep
-    container_name: gerep
+    container_name: soa_gerep
     environment:
       - DATABASE_URL=mysql+pymysql://soa_user:soa_password@db:3306/soa_db
     depends_on:
@@ -26,7 +26,7 @@ services:
 
   lista:
     build: ./services/lista
-    container_name: lista
+    container_name: soa_lista
     environment:
       - DATABASE_URL=mysql+pymysql://soa_user:soa_password@db:3306/soa_db
     depends_on:
@@ -36,7 +36,7 @@ services:
 
   multa:
     build: ./services/multa
-    container_name: multa
+    container_name: soa_multa
     environment:
       - DATABASE_URL=mysql+pymysql://soa_user:soa_password@db:3306/soa_db
     depends_on:
@@ -46,7 +46,7 @@ services:
 
   notis:
     build: ./services/notis
-    container_name: notis
+    container_name: soa_notis
     environment:
       - DATABASE_URL=mysql+pymysql://soa_user:soa_password@db:3306/soa_db
     depends_on:
@@ -56,7 +56,7 @@ services:
 
   prart:
     build: ./services/prart
-    container_name: prart
+    container_name: soa_prart
     environment:
       - DATABASE_URL=mysql+pymysql://soa_user:soa_password@db:3306/soa_db
     depends_on:
@@ -66,7 +66,7 @@ services:
 
   regist:
     build: ./services/regist
-    container_name: regist
+    container_name: soa_regist
     environment:
       - DATABASE_URL=mysql+pymysql://soa_user:soa_password@db:3306/soa_db
     depends_on:
@@ -76,7 +76,7 @@ services:
 
   sugit:
     build: ./services/sugit
-    container_name: sugit
+    container_name: soa_sugit
     environment:
       - DATABASE_URL=mysql+pymysql://soa_user:soa_password@db:3306/soa_db
     depends_on:
