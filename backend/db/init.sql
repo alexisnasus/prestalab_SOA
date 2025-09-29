@@ -143,7 +143,7 @@ CREATE INDEX solicitudIDX1 ON solicitud(usuario_id);
 -- ----------------------------------------------------------------------
 
 #TIPO: VENTANA, PRESTAMO, RENOVACION
-#ESTADO: PENDIENTE, ACEPTADA, RECHAZADA
+#ESTADO: PENDIENTE, APROBADA, RECHAZADA
 
 -- ======================================================================
 
