@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, Body, status
 from sqlalchemy import create_engine, text
 import os
 
-app = FastAPI()
+app = FastAPI(title="Servicio de Gestión de Usuarios")
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 engine = create_engine(DATABASE_URL, echo=True, future=True)
