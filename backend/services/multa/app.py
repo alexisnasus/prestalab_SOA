@@ -1,20 +1,64 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Body, status
 from sqlalchemy import create_engine, text
+from sqlalchemy.exc import SQLAlchemyError
 import os
 
-app = FastAPI()
+app = FastAPI(title="Servicio de Gestión de Multas")
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 engine = create_engine(DATABASE_URL, echo=True, future=True)
 
+
 @app.get("/")
 def root():
-    return {"message": "Servie MULTA is running"}
+    return {"message": "Servicio MULTA disponible"}
 
-#
-#@app.get("/items")
-#def get_items():
-#    with engine.connect() as conn:
-#        result = conn.execute(text("SELECT id, nombre, cantidad, tipo FROM item"))
-#        items = [dict(row._mapping) for row in result]
-#    return {"items": items}
+# RF05 - Consultar multas de un usuario
+@app.get("/usuarios/{id}/multas")
+def get_multas_usuario(id: int):
+    query = text("""
+        SELECT m.id, m.prestamo_id, m.motivo, m.valor, m.estado, m.registro_instante
+        FROM multa m
+        JOIN prestamo p ON m.prestamo_id = p.id
+        JOIN solicitud s ON p.solicitud_id = s.id
+        WHERE s.usuario_id = :usuario_id
+    """)
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(query, {"usuario_id": id}).mappings().all()
+        return {"usuario_id": id, "multas": result}
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# RF05 - Registrar multa
+@app.post("/multas", status_code=status.HTTP_201_CREATED)
+def crear_multa(multa: dict = Body(...)):
+    query = text("""
+        INSERT INTO multa (prestamo_id, motivo, valor, estado, registro_instante)
+        VALUES (:prestamo_id, :motivo, :valor, :estado, NOW())
+    """)
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(query, multa)
+        return {"id": result.lastrowid, "message": "Multa registrada con éxito"}
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# RF06 - Aplicar / quitar estado DEUDOR
+@app.put("/usuarios/{id}/estado")
+def actualizar_bloqueo(id: int, data: dict = Body(...)):
+    if "estado" not in data:
+        raise HTTPException(status_code=400, detail="Campo 'estado' requerido")
+    query = text("""
+        UPDATE usuario
+        SET estado = :estado
+        WHERE id = :usuario_id
+    """)
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(query, {"estado": data["estado"], "usuario_id": id})
+            if result.rowcount == 0:
+                raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        return {"message": f"Estado del usuario modificado correctamente a {data['estado']}"}
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=500, detail=str(e))
