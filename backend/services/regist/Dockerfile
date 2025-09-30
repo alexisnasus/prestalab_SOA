@@ -4,6 +4,16 @@ WORKDIR /app
 
 COPY app.py /app
 
+# Instalar dependencias del sistema necesarias para cryptography
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libssl-dev \
+    libffi-dev \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+# Actualizar pip y luego instalar dependencias de Python
+RUN pip install --upgrade pip
 RUN pip install fastapi uvicorn sqlalchemy pymysql cryptography
 
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -15,8 +15,8 @@ def root():
 @app.post("/usuarios", status_code=status.HTTP_201_CREATED)
 def registrar_usuario(usuario: dict = Body(...)):
     query = text("""
-        INSERT INTO usuario (nombre, correo, tipo, telefono, estado, preferencias_notificacion, registro_instante)
-        VALUES (:nombre, :correo, :tipo, :telefono, :estado, :preferencias_notificacion, NOW())
+        INSERT INTO usuario (id, nombre, correo, tipo, telefono, estado, preferencias_notificacion, registro_instante)
+        VALUES (:id, :nombre, :correo, :tipo, :telefono, :estado, :preferencias_notificacion, NOW())
     """)
     with engine.begin() as conn:
         result = conn.execute(query, usuario)
@@ -30,11 +30,11 @@ def login(auth: dict = Body(...)):
     query = text("SELECT * FROM usuario WHERE correo = :correo")
     with engine.begin() as conn:
         user = conn.execute(query, {"correo": correo}).fetchone()
-        if not user or password != "mock_password":  # aquí habría verificación real de hash
+        if not user or password != "mock_password":
             raise HTTPException(status_code=401, detail="Credenciales inválidas")
         return {"message": f"Usuario {correo} autenticado", "token": "fake-jwt-token"}
 
-# Consultar usuario
+# Retrieve usuario
 @app.get("/usuarios/{id}")
 def consultar_usuario(id: int):
     query = text("SELECT * FROM usuario WHERE id = :id")
@@ -44,7 +44,7 @@ def consultar_usuario(id: int):
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
         return dict(user._mapping)
 
-# Actualizar datos usuario
+# Update usuario
 @app.put("/usuarios/{id}")
 def actualizar_usuario(id: int, datos: dict = Body(...)):
     sets = ", ".join([f"{k} = :{k}" for k in datos.keys()])
