@@ -10,10 +10,17 @@ services:
       MYSQL_USER: soa_user
       MYSQL_PASSWORD: soa_password
     ports:
-      - "3306:3306"
+      - "3307:3306"
     volumes:
-      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./db/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./db/seed_data.sql:/docker-entrypoint-initdb.d/02-seed_data.sql
       - ./db/data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "soa_user", "-psoa_password"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 80s
 
   phpmyadmin:
     image: phpmyadmin/phpmyadmin:latest
@@ -27,7 +34,8 @@ services:
     ports:
       - "8080:80"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
   gerep:
     build: ./services/gerep
@@ -35,7 +43,8 @@ services:
     environment:
       - DATABASE_URL=mysql+pymysql://soa_user:soa_password@db:3306/soa_db
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     ports:
       - "8001:8000"
 
@@ -45,7 +54,8 @@ services:
     environment:
       - DATABASE_URL=mysql+pymysql://soa_user:soa_password@db:3306/soa_db
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     ports:
       - "8002:8000"
 
@@ -55,7 +65,8 @@ services:
     environment:
       - DATABASE_URL=mysql+pymysql://soa_user:soa_password@db:3306/soa_db
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     ports:
       - "8003:8000"
 
@@ -65,7 +76,8 @@ services:
     environment:
       - DATABASE_URL=mysql+pymysql://soa_user:soa_password@db:3306/soa_db
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     ports:
       - "8004:8000"
 
@@ -75,7 +87,8 @@ services:
     environment:
       - DATABASE_URL=mysql+pymysql://soa_user:soa_password@db:3306/soa_db
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     ports:
       - "8005:8000"
 
@@ -85,7 +98,8 @@ services:
     environment:
       - DATABASE_URL=mysql+pymysql://soa_user:soa_password@db:3306/soa_db
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     ports:
       - "8006:8000"
 
@@ -95,6 +109,7 @@ services:
     environment:
       - DATABASE_URL=mysql+pymysql://soa_user:soa_password@db:3306/soa_db
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     ports:
       - "8007:8000"

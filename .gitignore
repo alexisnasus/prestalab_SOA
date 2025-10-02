@@ -1,2 +1,4 @@
 ./backend/db/data
 /backend/db/data
+./backend/venv
+/backend/venv

@@ -1,6 +1,10 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy import create_engine, text
+from reportlab.pdfgen import canvas
 import os
+import io
+import csv
 
 app = FastAPI(title="Servicio de Gestión de Reportes")
 
@@ -84,7 +88,7 @@ def historial_usuario(usuario_id: int, formato: str = "json"):
 def reportes_circulacion(
     periodo: str = Query(..., description="Periodo en formato YYYY-MM"),
     sede: int = Query(..., description="ID de la sede")
-    
+):
     """
     Retorna métricas de:
     - Rotación (cantidad de préstamos realizados en el periodo por sede)
@@ -135,4 +139,3 @@ def reportes_circulacion(
         "morosidad_porcentaje": round(morosidad, 2),
         "danos": danos
     }
-):
