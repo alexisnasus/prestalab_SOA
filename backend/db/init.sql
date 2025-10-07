@@ -79,7 +79,7 @@ CREATE INDEX usuarioIDX1 ON usuario(nombre);
 
 #TIPO: ENCARGADO, ESTUDIANTE, DOCENTE
 #ESTADO: ACTIVO, INACTIVO, SUSPENDIDO, DEUDOR, BLOQUEADO
-#PREFERENCIAS_NOTIFICACION: Bit 1=PORTAL(1), Bit 2=WHATSAPP(2), Bit 3=EMAIL(4)
+#PREFERENCIAS_NOTIFICACION: 1=PORTAL, 2=WHATSAPP, 3=EMAIL
 
 -- ======================================================================
 
@@ -120,7 +120,7 @@ CREATE INDEX notificacionIDX1 ON notificacion(usuario_id);
 
 -- ----------------------------------------------------------------------
 
-#CANAL: EMAIL, WHATSAPP, PORTAL
+#CANAL: 1=PORTAL, 2=WHATSAPP, 3=EMAIL
 #TIPO: RECORDATORIO, LISTA_ESPERA, SUGERENCIA_ACEPTADA, SUGERENCIA_RECHAZADA, ATRASO, RESERVA_CREADA, RESERVA_PROXIMA_CADUCAR, RESERVA_CADUCADA, PRESTAMO_CONFIRMADO, DEVOLUCION_PROXIMA
 
 -- ======================================================================

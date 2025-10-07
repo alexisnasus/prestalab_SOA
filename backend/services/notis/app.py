@@ -1,79 +1,79 @@
-from fastapi import FastAPI, HTTPException, Body, status
+from fastapi import FastAPI, HTTPException, Body, Path, status
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
+from datetime import datetime
 import os
 
-app = FastAPI(title="Servicio de Gestión de Notificaciones")
+app = FastAPI(title="Servicio de Gestión de Notificaciones (NOTIS)")
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 engine = create_engine(DATABASE_URL, echo=True, future=True)
-
 
 @app.get("/")
 def root():
     return {"message": "Servicio NOTIS disponible"}
 
-# POST /notificaciones → enviar aviso (RF10)
+# Crear notificación
 @app.post("/notificaciones", status_code=status.HTTP_201_CREATED)
-def enviar_notificacion(
-    usuario_id: int = Body(...),
-    canal: str = Body(...),  # EMAIL, WHATSAPP, PORTAL
-    tipo: str = Body(...),   # RECORDATORIO, RESERVA_CREADA, etc.
-    mensaje: str = Body(...),
-):
+def crear_notificacion(notificacion: dict = Body(...)):
+    query = text("""
+        INSERT INTO notificacion (usuario_id, canal, tipo, mensaje, registro_instante)
+        VALUES (:usuario_id, :canal, :tipo, :mensaje, NOW())
+    """)
     try:
         with engine.begin() as conn:
-            conn.execute(
-                text(
-                    """
-                    INSERT INTO notificacion (usuario_id, canal, tipo, mensaje, registro_instante)
-                    VALUES (:usuario_id, :canal, :tipo, :mensaje, NOW())
-                    """
-                ),
-                {
-                    "usuario_id": usuario_id,
-                    "canal": canal,
-                    "tipo": tipo,
-                    "mensaje": mensaje,
-                },
-            )
-        return {"status": "ok", "detail": "Notificación registrada"}
+            result = conn.execute(query, notificacion)
+            return {"id": result.lastrowid, "message": "Notificación registrada correctamente"}
     except SQLAlchemyError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# GET /preferencias/{usuarioId} → consultar preferencias
-@app.get("/preferencias/{usuario_id}")
-def get_preferencias(usuario_id: int):
-    try:
-        with engine.begin() as conn:
-            result = conn.execute(
-                text("SELECT canales FROM preferencias WHERE usuario_id = :usuario_id"),
-                {"usuario_id": usuario_id},
-            ).fetchone()
+# Obtener preferencias de notificación del usuario
+@app.get("/preferencias/{usuario_id}", status_code=status.HTTP_200_OK)
+def obtener_preferencias(usuario_id: int = Path(..., description="ID del usuario")):
+    query = text("""
+        SELECT preferencias_notificacion
+        FROM usuario
+        WHERE id = :usuario_id
+    """)
 
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(query, {"usuario_id": usuario_id}).mappings().first()
             if not result:
-                raise HTTPException(status_code=404, detail="Preferencias no encontradas")
+                raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
-            return {"usuario_id": usuario_id, "canales": result[0].split(",")}
+            return {
+                "usuario_id": usuario_id,
+                "preferencias_notificacion": result["preferencias_notificacion"]
+            }
     except SQLAlchemyError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# PUT /preferencias/{usuarioId} → actualizar preferencias
+# Actualizar preferencias de notifiación del usuario
 @app.put("/preferencias/{usuario_id}", status_code=status.HTTP_200_OK)
-def update_preferencias(usuario_id: int, canales: list[str] = Body(...)):
+def actualizar_preferencias(usuario_id: int, preferencias: dict = Body(...)):
+    if "preferencias_notificacion" not in preferencias:
+        raise HTTPException(status_code=400, detail="Debe incluir 'preferencias_notificacion' en el cuerpo")
+
+    query = text("""
+        UPDATE usuario
+        SET preferencias_notificacion = :preferencias_notificacion
+        WHERE id = :usuario_id
+    """)
+
     try:
-        canales_str = ",".join(canales)
         with engine.begin() as conn:
-            conn.execute(
-                text(
-                    """
-                    INSERT INTO preferencias (usuario_id, canales)
-                    VALUES (:usuario_id, :canales)
-                    ON DUPLICATE KEY UPDATE canales = :canales
-                    """
-                ),
-                {"usuario_id": usuario_id, "canales": canales_str},
-            )
-        return {"status": "ok", "detail": "Preferencias actualizadas"}
+            result = conn.execute(query, {
+                "usuario_id": usuario_id,
+                "preferencias_notificacion": preferencias["preferencias_notificacion"]
+            })
+
+            if result.rowcount == 0:
+                raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+        return {
+            "message": f"Preferencias e notificaión del usuario {usuario_id} actualizadas correctamente",
+
+        }
     except SQLAlchemyError as e:
         raise HTTPException(status_code=500, detail=str(e))
