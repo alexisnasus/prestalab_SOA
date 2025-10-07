@@ -13,7 +13,7 @@ engine = create_engine(DATABASE_URL, echo=True, future=True)
 def root():
     return {"message": "Servicio MULTA disponible"}
 
-# RF05 - Consultar multas de un usuario
+# Consultar multas de un usuario
 @app.get("/usuarios/{id}/multas")
 def get_multas_usuario(id: int):
     query = text("""
@@ -30,7 +30,7 @@ def get_multas_usuario(id: int):
     except SQLAlchemyError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# RF05 - Registrar multa
+# Registrar multa
 @app.post("/multas", status_code=status.HTTP_201_CREATED)
 def crear_multa(multa: dict = Body(...)):
     query = text("""
@@ -44,7 +44,7 @@ def crear_multa(multa: dict = Body(...)):
     except SQLAlchemyError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# RF06 - Aplicar / quitar estado DEUDOR
+# Aplicar / quitar estado DEUDOR
 @app.put("/usuarios/{id}/estado")
 def actualizar_bloqueo(id: int, data: dict = Body(...)):
     if "estado" not in data:
