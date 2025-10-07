@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: db
--- Generation Time: Sep 30, 2025 at 05:14 PM
+-- Generation Time: Oct 07, 2025 at 12:20 PM
 -- Server version: 8.0.43
 -- PHP Version: 8.2.27
 
@@ -289,7 +289,7 @@ CREATE TABLE `multa` (
 CREATE TABLE `notificacion` (
   `id` bigint NOT NULL,
   `usuario_id` bigint NOT NULL,
-  `canal` varchar(20) NOT NULL,
+  `canal` int NOT NULL,
   `tipo` varchar(20) NOT NULL,
   `mensaje` text NOT NULL,
   `registro_instante` datetime NOT NULL
@@ -300,7 +300,7 @@ CREATE TABLE `notificacion` (
 --
 
 INSERT INTO `notificacion` (`id`, `usuario_id`, `canal`, `tipo`, `mensaje`, `registro_instante`) VALUES
-(1, 197407514, '1', 'RECORDATORIO', 'Recuerda que el sol se esconde por la costa. Mientras que al amanecer sale por la cordillera.', '2025-09-29 17:27:31');
+(1, 197407514, 1, 'RECORDATORIO', 'Recuerda que el sol se esconde por la costa. Mientras que al amanecer sale por la cordillera.', '2025-09-29 17:27:31');
 
 -- --------------------------------------------------------
 

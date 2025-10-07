@@ -106,7 +106,7 @@ CREATE TABLE notificacion
   (
     id               bigint        auto_increment unique not null,
     usuario_id       bigint        not null,
-    canal            varchar(20)   not null,
+    canal            int   not null,
     tipo             varchar(20)   not null,
     mensaje          text          not null,
     registro_instante datetime     not null,
