@@ -5,6 +5,9 @@ WORKDIR /app
 # Copiar requirements del proyecto principal
 COPY ./requirements.txt .
 
+# Actualizar e instalar curl
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
 # Instalar dependencias
 RUN pip install --no-cache-dir -r requirements.txt && \
     pip install --no-cache-dir httpx
