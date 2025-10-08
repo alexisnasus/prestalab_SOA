@@ -75,6 +75,26 @@ def cancelar_reserva(reserva_id: int = Path(...)):
     except SQLAlchemyError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# Registrar solicitud
+@app.post("/solicitudes", status_code=status.HTTP_201_CREATED)
+def crear_solicitud(
+    usuario_id: int = Body(...),
+    tipo: str = Body(...)
+):
+    try:
+        with engine.begin() as conn:
+            query = """
+            INSERT INTO solicitud (usuario_id, tipo, estado, registro_instante)
+            VALUES (:usuario_id, :tipo, 'PENDIENTE', NOW())
+            """
+            conn.execute(
+                text(query),
+                {"usuario_id": usuario_id, "tipo": tipo}
+            )
+        return {"message": "Reserva creada exitosamente"}
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # Registrar préstamo
 @app.post("/prestamos", status_code=status.HTTP_201_CREATED)
 def registrar_prestamo(
