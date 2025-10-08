@@ -3,7 +3,7 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Copiar requirements del proyecto principal
-COPY ../requirements.txt .
+COPY ./requirements.txt .
 
 # Instalar dependencias
 RUN pip install --no-cache-dir -r requirements.txt && \
