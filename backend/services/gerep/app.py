@@ -18,12 +18,6 @@ def root():
 # GET /usuarios/{id}/historial?formato=pdf|csv
 @app.get("/usuarios/{usuario_id}/historial")
 def historial_usuario(usuario_id: int, formato: str = "json"):
-    """
-    Exporta el historial de préstamos de un usuario en formato:
-    - json (default)
-    - csv
-    - pdf
-    """
 
     with engine.connect() as conn:
         rows = conn.execute(text("""
