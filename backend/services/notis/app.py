@@ -3,11 +3,33 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 from datetime import datetime
 import os
+import sys
+sys.path.append('/app')  # Para importar bus_client desde el contenedor
+from bus_client import register_service
 
 app = FastAPI(title="Servicio de Gestión de Notificaciones (NOTIS)")
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 engine = create_engine(DATABASE_URL, echo=True, future=True)
+
+# ============================================================================
+# REGISTRO EN EL BUS (SOA)
+# ============================================================================
+
+@app.on_event("startup")
+async def startup():
+    """Registra el servicio en el bus al iniciar"""
+    await register_service(
+        app=app,
+        service_name="notis",
+        service_url="http://notis:8000",
+        description="Gestión de notificaciones multicanal",
+        version="1.0.0"
+    )
+
+# ============================================================================
+# ENDPOINTS
+# ============================================================================
 
 @app.get("/")
 def root():

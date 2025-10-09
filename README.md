@@ -1,50 +1,66 @@
 # PrestaLab SOA
 
-Sistema de préstamos bibliotecarios con arquitectura orientada a servicios (SOA).
-
-## 📋 Arquitectura
-
-```
-┌─────────────┐
-│   Clientes  │
-└──────┬──────┘
-       │
-       ▼
-┌─────────────────────────────┐
-│  Enterprise Service Bus     │  ← Bus central con persistencia SQLite
-│  http://localhost:8000      │
-└─────────┬───────────────────┘
-          │
-          ├──────┬──────┬──────┬──────┬──────┬──────┐
-          ▼      ▼      ▼      ▼      ▼      ▼      ▼
-       GEREP  LISTA  MULTA  NOTIS  PRART  REGIST  SUGIT
-       :8001  :8002  :8003  :8004  :8005  :8006   :8007
-          │      │      │      │      │      │      │
-          └──────┴──────┴──────┴──────┴──────┴──────┘
-                            │
-                            ▼
-                    ┌──────────────┐
-                    │   MySQL DB   │
-                    │   :3307      │
-                    └──────────────┘
-```
+Sistema de préstamos bibliotecarios con **Arquitectura Orientada a Servicios (SOA)** y **Enterprise Service Bus (ESB)**.
 
 ---
 
-## 🚀 Inicio Rápido
+## 📋 Arquitectura del Sistema
 
-### 1. Instalar dependencias
-```bash
-cd backend
-python -m venv venv
-venv\Scripts\activate  # Windows
-# source venv/bin/activate  # Linux/Mac
-pip install -r requirements.txt
+```
+                        ┌─────────────┐
+                        │  CLIENTES   │
+                        └──────┬──────┘
+                               │
+                    ┌──────────▼──────────┐
+                    │  🚌 ESB (Bus SOA)   │  ← Service Registry + Discovery
+                    │  localhost:8000     │     Message Router + Monitoring
+                    └──────────┬──────────┘     Persistencia SQLite
+                               │
+        ┌──────┬──────┬────────┼────────┬──────┬──────┐
+        ▼      ▼      ▼        ▼        ▼      ▼      ▼
+     GEREP  LISTA  MULTA    NOTIS    PRART  REGIST SUGIT
+     :8001  :8002  :8003    :8004    :8005  :8006  :8007
+        │      │      │        │        │      │      │
+        └──────┴──────┴────────┴────────┴──────┴──────┘
+                              │
+                       ┌──────▼──────┐
+                       │  MySQL DB   │
+                       │   :3307     │
+                       └─────────────┘
 ```
 
-### 2. Levantar sistema completo
+### Componentes Principales
 
-**Primera vez:**
+| Componente | Puerto | Función |
+|------------|--------|---------|
+| **ESB (Bus)** | 8000 | Orquestador central: registro, descubrimiento, enrutamiento |
+| **GEREP** | 8001 | Gestión de reportes e historial |
+| **LISTA** | 8002 | Gestión de listas de espera |
+| **MULTA** | 8003 | Gestión de multas y bloqueos |
+| **NOTIS** | 8004 | Gestión de notificaciones multicanal |
+| **PRART** | 8005 | Gestión de préstamos y artículos |
+| **REGIST** | 8006 | Registro y autenticación de usuarios |
+| **SUGIT** | 8007 | Gestión de sugerencias |
+| **MySQL** | 3307 | Base de datos principal |
+| **phpMyAdmin** | 8080 | Administración de BD |
+
+### Características del ESB
+
+✅ **Auto-registro** - Servicios se registran automáticamente al iniciar  
+✅ **Service Discovery** - Descubrimiento dinámico de servicios  
+✅ **Message Router** - Enrutamiento inteligente de mensajes  
+✅ **Health Monitoring** - Monitoreo de salud cada 30s  
+✅ **Persistencia SQLite** - Registro sobrevive reinicios  
+✅ **Logs Centralizados** - Historial de comunicaciones  
+✅ **Métricas** - Estadísticas por servicio  
+
+---
+
+## 🚀 Comandos Esenciales
+
+### Levantar Sistema
+
+**Primera vez (con rebuild):**
 ```bash
 cd backend
 docker-compose down --volumes --remove-orphans
@@ -54,324 +70,188 @@ docker-compose up --build
 **Ejecuciones posteriores:**
 ```bash
 cd backend
-docker-compose up
+docker-compose up -d
+```
+
+### Detener Sistema
+
+```bash
+cd backend
+docker-compose down
+```
+
+### Eliminar Todo (Contenedores + Volúmenes + Redes)
+
+```bash
+cd backend
+docker-compose down --volumes --remove-orphans
+```
+
+### Ver Logs
+
+```bash
+# Logs del bus
+docker logs -f soa_bus
+
+# Logs de un servicio específico
+docker logs -f soa_regist
+
+# Logs de todos los servicios
+docker-compose logs -f
+```
+
+### Reiniciar Servicios
+
+```bash
+# Reiniciar todo
+docker-compose restart
+
+# Reiniciar solo el bus
+docker-compose restart bus
+
+# Reiniciar un servicio específico
+docker-compose restart regist
 ```
 
 ---
 
-## 🌐 Servicios Disponibles
+## 📊 Endpoints del Bus
 
-| Servicio | Puerto | Descripción |
+| Endpoint | Método | Descripción |
 |----------|--------|-------------|
-| **Bus ESB** | 8000 | Enterprise Service Bus (registro, enrutamiento, monitoreo) |
-| **phpMyAdmin** | 8080 | Administración de base de datos |
-| **gerep** | 8001 | Gestión de Reportes (historial, estadísticas) |
-| **lista** | 8002 | Gestión de Listas de Espera |
-| **multa** | 8003 | Gestión de Multas y bloqueos |
-| **notis** | 8004 | Gestión de Notificaciones |
-| **prart** | 8005 | Gestión de Préstamos y Artículos |
-| **regist** | 8006 | Registro y autenticación de usuarios |
-| **sugit** | 8007 | Gestión de Sugerencias |
+| `/ping` | GET | Health check del bus |
+| `/` | GET | Información del bus |
+| `/discover` | GET | Lista todos los servicios registrados |
+| `/register` | POST | Registro de servicios (automático) |
+| `/unregister/{service}` | DELETE | Desregistrar un servicio |
+| `/route` | POST | Enrutar mensaje a un servicio |
+| `/health/{service}` | GET | Estado de un servicio específico |
+| `/heartbeat/{service}` | POST | Enviar latido de vida |
+| `/broadcast` | POST | Enviar mensaje a todos los servicios |
+| `/logs` | GET | Logs de mensajes enrutados |
+| `/stats` | GET | Estadísticas del bus |
+| `/docs` | GET | Documentación interactiva (Swagger) |
 
 ---
 
-## 🚌 Enterprise Service Bus (ESB)
+## 🔧 Gestión de Servicios
 
-El bus es el componente central que orquesta la comunicación entre servicios.
+### Registrar un Servicio
 
-### Características
+**PowerShell:**
+```powershell
+$body = @{
+    service_name = "mi_servicio"
+    service_url = "http://localhost:8010"
+    description = "Mi nuevo servicio"
+    version = "1.0.0"
+    endpoints = @("/users", "/health")
+} | ConvertTo-Json
 
-✅ **Registro dinámico** - Los servicios se auto-registran al iniciar  
-✅ **Service Discovery** - Descubrimiento automático de servicios  
-✅ **Enrutamiento inteligente** - Enruta mensajes al servicio correcto  
-✅ **Health Checks** - Monitoreo constante del estado de servicios  
-✅ **Persistencia SQLite** - Sobrevive reinicios del bus  
-✅ **Logs centralizados** - Historial de todas las comunicaciones  
-
-### Endpoints principales
-
-```bash
-# Ver información del bus
-GET http://localhost:8000/
-
-# Descubrir servicios disponibles
-GET http://localhost:8000/discover
-
-# Enrutar mensaje a un servicio
-POST http://localhost:8000/route
-{
-  "target_service": "regist",
-  "method": "GET",
-  "endpoint": "/usuarios/1"
-}
-
-# Ver estado de un servicio
-GET http://localhost:8000/health/multa
-
-# Ver logs de comunicaciones
-GET http://localhost:8000/logs
-
-# Ver estadísticas del bus
-GET http://localhost:8000/stats
+Invoke-RestMethod -Uri "http://localhost:8000/register" -Method Post -ContentType "application/json" -Body $body
 ```
 
-### Persistencia
-
-El bus usa **SQLite** para persistir:
-- Servicios registrados
-- Logs de mensajes (últimos 1000)
-- Estadísticas acumuladas
-
-**Archivo:** `backend/Bus/bus_data.db`
-
-**Ventajas:**
-- ✅ Cero configuración (viene con Python)
-- ✅ Solo 1 dependencia adicional (`aiosqlite`)
-- ✅ Alto rendimiento (caché en memoria + SQLite)
-- ✅ Los servicios persisten tras reinicios
-
----
-
-## 🔧 Integración de Servicios con el Bus
-
-Cada servicio debe registrarse en el bus al iniciar. Agregar en `app.py`:
-
-```python
-import os
-import httpx
-from fastapi import FastAPI
-
-app = FastAPI(title="Mi Servicio")
-
-BUS_URL = os.getenv("BUS_URL", "http://bus:8000")
-
-@app.on_event("startup")
-async def register_with_bus():
-    """Registra el servicio en el bus al iniciar"""
-    try:
-        async with httpx.AsyncClient() as client:
-            await client.post(
-                f"{BUS_URL}/register",
-                json={
-                    "service_name": "mi_servicio",
-                    "service_url": "http://mi_servicio:8000",
-                    "description": "Descripción del servicio",
-                    "version": "1.0.0",
-                    "endpoints": ["/", "/endpoint1", "/endpoint2"]
-                },
-                timeout=5.0
-            )
-            print("✓ Registrado en el bus")
-    except Exception as e:
-        print(f"⚠ Error registrando en bus: {e}")
-```
-
----
-
-## 🧪 Testing
-
-### Verificar que el bus funciona
+**Bash:**
 ```bash
-curl http://localhost:8000/ping
-```
-
-### Ver servicios registrados
-```bash
-curl http://localhost:8000/discover
-```
-
-### Llamar a un servicio a través del bus
-```bash
-curl -X POST http://localhost:8000/route \
+curl -X POST http://localhost:8000/register \
   -H "Content-Type: application/json" \
   -d '{
-    "target_service": "regist",
-    "method": "GET",
-    "endpoint": "/usuarios/1"
+    "service_name": "mi_servicio",
+    "service_url": "http://localhost:8010",
+    "description": "Mi nuevo servicio",
+    "version": "1.0.0",
+    "endpoints": ["/users", "/health"]
   }'
 ```
 
-### Verificar persistencia
+### Desregistrar un Servicio
+
+**PowerShell:**
+```powershell
+Invoke-RestMethod -Uri "http://localhost:8000/unregister/mi_servicio" -Method Delete
+```
+
+**Bash:**
 ```bash
-# 1. Registrar un servicio de prueba
-curl -X POST http://localhost:8000/register \
-  -d '{"service_name":"test","service_url":"http://test:9000"}'
-
-# 2. Reiniciar el bus
-docker-compose restart bus
-
-# 3. Verificar que el servicio persiste
-curl http://localhost:8000/discover
-# Debe mostrar "test" en la lista
+curl -X DELETE http://localhost:8000/unregister/mi_servicio
 ```
 
----
+### Enviar Heartbeat
 
-## � Base de Datos
-
-**Conexión MySQL:**
-- Host: `localhost`
-- Puerto: `3307`
-- Usuario: `soa_user`
-- Password: `soa_password`
-- Base de datos: `soa_db`
-
-**phpMyAdmin:** http://localhost:8080
-
----
-
-## 🛠️ Desarrollo
-
-### Agregar un nuevo servicio
-
-1. Crear carpeta en `backend/services/nuevo_servicio/`
-2. Crear `app.py` con FastAPI
-3. Crear `Dockerfile`:
-```dockerfile
-FROM python:3.11-slim
-WORKDIR /app
-COPY ../../requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-COPY app.py .
-EXPOSE 8000
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+**PowerShell:**
+```powershell
+Invoke-RestMethod -Uri "http://localhost:8000/heartbeat/mi_servicio" -Method Post
 ```
 
-4. Agregar al `docker-compose.yml`:
-```yaml
-nuevo_servicio:
-  build: ./services/nuevo_servicio
-  container_name: soa_nuevo_servicio
-  environment:
-    - DATABASE_URL=mysql+pymysql://soa_user:soa_password@db:3306/soa_db
-    - BUS_URL=http://bus:8000
-  depends_on:
-    db:
-      condition: service_healthy
-    bus:
-      condition: service_healthy
-  ports:
-    - "8008:8000"
-```
-
-5. Agregar código de registro en el bus (ver sección anterior)
-
----
-
-## 📝 Cliente de Ejemplo
-
-```python
-import httpx
-import asyncio
-
-class SOAClient:
-    def __init__(self, bus_url="http://localhost:8000"):
-        self.bus_url = bus_url
-    
-    async def call_service(self, service_name, method, endpoint, payload=None):
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{self.bus_url}/route",
-                json={
-                    "target_service": service_name,
-                    "method": method,
-                    "endpoint": endpoint,
-                    "payload": payload
-                }
-            )
-            result = response.json()
-            if result.get("success"):
-                return result.get("data")
-            raise Exception(result.get("error"))
-
-# Uso
-async def main():
-    client = SOAClient()
-    
-    # Obtener usuario
-    usuario = await client.call_service("regist", "GET", "/usuarios/1")
-    print(usuario)
-    
-    # Consultar multas
-    multas = await client.call_service("multa", "GET", "/usuarios/1/multas")
-    print(multas)
-
-asyncio.run(main())
-```
-
----
-
-## 🔍 Logs y Monitoreo
-
-### Ver logs del bus
+**Bash:**
 ```bash
-docker logs -f soa_bus
-```
-
-### Ver logs de un servicio
-```bash
-docker logs -f soa_gerep
-```
-
-### Inspeccionar base de datos del bus
-```bash
-docker exec -it soa_bus sh
-sqlite3 bus_data.db
-SELECT * FROM services;
-SELECT * FROM message_logs LIMIT 10;
+curl -X POST http://localhost:8000/heartbeat/mi_servicio
 ```
 
 ---
 
-## 🐛 Troubleshooting
+## 🎯 Operaciones de Servicios (SOA)
 
-### El bus no responde
-```bash
-# Verificar que esté corriendo
-docker ps | grep bus
+### REGIST - Gestión de Usuarios (Puerto 8006)
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/` | Health check del servicio |
+| POST | `/usuarios` | Registrar nuevo usuario |
+| POST | `/auth/login` | Autenticar usuario |
+| GET | `/usuarios/{id}` | Consultar usuario por ID |
+| PUT | `/usuarios/{id}` | Actualizar datos de usuario |
 
-# Ver logs
-docker logs soa_bus
+### PRART - Préstamos & Artículos (Puerto 8005)
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/` | Health check del servicio |
+| GET | `/items?nombre=&tipo=` | Buscar artículos del catálogo |
+| POST | `/solicitudes` | Crear solicitud de préstamo |
+| POST | `/reservas` | Crear reserva de artículo |
+| DELETE | `/reservas/{id}` | Cancelar reserva |
+| POST | `/prestamos` | Registrar préstamo |
+| POST | `/devoluciones` | Registrar devolución |
+| PUT | `/prestamos/{id}/renovar` | Renovar préstamo |
+| PUT | `/items/{existencia_id}/estado` | Actualizar estado de artículo |
 
-# Reiniciar
-docker-compose restart bus
-```
+### MULTA - Multas & Bloqueos (Puerto 8003)
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/` | Health check del servicio |
+| GET | `/usuarios/{id}/multas` | Consultar multas de usuario |
+| POST | `/multas` | Registrar nueva multa |
+| PUT | `/usuarios/{id}/estado` | Cambiar estado de usuario (bloquear/desbloquear) |
 
-### Servicios no se registran
-- Verificar que `BUS_URL` esté configurado en el servicio
-- Verificar que el bus esté corriendo antes que los servicios
-- Revisar logs del servicio: `docker logs soa_servicio`
+### LISTA - Listas de Espera (Puerto 8002)
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/` | Health check del servicio |
+| POST | `/lista-espera` | Agregar usuario a lista de espera |
+| PUT | `/lista-espera/{id}` | Actualizar estado (ATENDIDA/CANCELADA) |
+| GET | `/lista-espera/{item_id}` | Consultar lista de espera por artículo |
 
-### Base de datos no conecta
-```bash
-# Verificar que MySQL esté saludable
-docker ps
+### NOTIS - Notificaciones (Puerto 8004)
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/` | Health check del servicio |
+| POST | `/notificaciones` | Crear notificación |
+| GET | `/preferencias/{usuario_id}` | Obtener preferencias de notificación |
+| PUT | `/preferencias/{usuario_id}` | Actualizar preferencias de notificación |
 
-# Reiniciar contenedor de DB
-docker-compose restart db
-```
+### GEREP - Reportes & Historial (Puerto 8001)
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/` | Health check del servicio |
+| GET | `/usuarios/{id}/historial?formato=json\|csv\|pdf` | Historial de préstamos de usuario |
+| GET | `/reportes/circulacion?periodo=YYYY-MM&sede=id` | Métricas de circulación por sede |
+
+### SUGIT - Sugerencias (Puerto 8007)
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/` | Health check del servicio |
+| POST | `/sugerencias` | Registrar sugerencia |
+| GET | `/sugerencias` | Listar todas las sugerencias |
+| PUT | `/sugerencias/{id}/aprobar` | Aprobar sugerencia |
+| PUT | `/sugerencias/{id}/rechazar` | Rechazar sugerencia |
 
 ---
-
-## 📚 Tecnologías
-
-- **Python 3.11** - Lenguaje de programación
-- **FastAPI** - Framework web asíncrono
-- **MySQL 8.0** - Base de datos principal
-- **SQLite** - Persistencia del bus
-- **Docker** - Contenedorización
-- **httpx** - Cliente HTTP asíncrono
-- **SQLAlchemy** - ORM para MySQL
-- **aiosqlite** - SQLite asíncrono
-
----
-
-## 👥 Equipo
-
-Proyecto desarrollado para el ramo **Arquitectura de Software 2025/S2**
-
----
-
-## 📄 Licencia
-
-Este proyecto es para uso académico.

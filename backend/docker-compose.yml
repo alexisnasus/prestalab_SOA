@@ -23,16 +23,16 @@ services:
       start_period: 80s
 
   bus:
-    build: ./backend/bus       # <-- unifica carpeta en minúsculas y ajusta esta ruta
+    build: ./bus
     container_name: soa_bus
     restart: always
     ports:
       - "8000:8000"
     environment:
       - PYTHONUNBUFFERED=1
-      - BUS_DB_PATH=/data/bus_data.db   # <-- para persistir SQLite
+      - BUS_DB_PATH=/data/bus_data.db   
     volumes:
-      - ./bus_data:/data                # <-- crea la carpeta 'bus_data' en el host
+      - ./bus_data:/data                
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/ping"]
       interval: 30s
@@ -55,7 +55,6 @@ services:
       db:
         condition: service_healthy
 
-  # Servicios (ejemplo)
   gerep:
     build: ./services/gerep
     container_name: soa_gerep
@@ -70,4 +69,86 @@ services:
     ports:
       - "8001:8000"
 
-  # ... (lista, multa, notis, prart, regist, sugit iguales)
+  lista:
+    build: ./services/lista
+    container_name: soa_lista
+    environment:
+      - DATABASE_URL=mysql+pymysql://soa_user:soa_password@db:3306/soa_db
+      - BUS_URL=http://bus:8000
+    depends_on:
+      db:
+        condition: service_healthy
+      bus:
+        condition: service_healthy
+    ports:
+      - "8002:8000"
+
+  multa:
+    build: ./services/multa
+    container_name: soa_multa
+    environment:
+      - DATABASE_URL=mysql+pymysql://soa_user:soa_password@db:3306/soa_db
+      - BUS_URL=http://bus:8000
+    depends_on:
+      db:
+        condition: service_healthy
+      bus:
+        condition: service_healthy
+    ports:
+      - "8003:8000"
+
+  notis:
+    build: ./services/notis
+    container_name: soa_notis
+    environment:
+      - DATABASE_URL=mysql+pymysql://soa_user:soa_password@db:3306/soa_db
+      - BUS_URL=http://bus:8000
+    depends_on:
+      db:
+        condition: service_healthy
+      bus:
+        condition: service_healthy
+    ports:
+      - "8004:8000"
+
+  prart:
+    build: ./services/prart
+    container_name: soa_prart
+    environment:
+      - DATABASE_URL=mysql+pymysql://soa_user:soa_password@db:3306/soa_db
+      - BUS_URL=http://bus:8000
+    depends_on:
+      db:
+        condition: service_healthy
+      bus:
+        condition: service_healthy
+    ports:
+      - "8005:8000"
+
+  regist:
+    build: ./services/regist
+    container_name: soa_regist
+    environment:
+      - DATABASE_URL=mysql+pymysql://soa_user:soa_password@db:3306/soa_db
+      - BUS_URL=http://bus:8000
+    depends_on:
+      db:
+        condition: service_healthy
+      bus:
+        condition: service_healthy
+    ports:
+      - "8006:8000"
+
+  sugit:
+    build: ./services/sugit
+    container_name: soa_sugit
+    environment:
+      - DATABASE_URL=mysql+pymysql://soa_user:soa_password@db:3306/soa_db
+      - BUS_URL=http://bus:8000
+    depends_on:
+      db:
+        condition: service_healthy
+      bus:
+        condition: service_healthy
+    ports:
+      - "8007:8000"
