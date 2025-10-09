@@ -4,11 +4,15 @@ import os
 import sys
 sys.path.append('/app')  # Para importar bus_client desde el contenedor
 from bus_client import register_service
+from service_logger import create_service_logger
 
 app = FastAPI(title="Servicio de Gestión de Sugerencias")
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 engine = create_engine(DATABASE_URL, echo=True, future=True)
+
+# Crear logger para este servicio
+logger = create_service_logger("sugit")
 
 # ============================================================================
 # REGISTRO EN EL BUS (SOA)
@@ -17,6 +21,8 @@ engine = create_engine(DATABASE_URL, echo=True, future=True)
 @app.on_event("startup")
 async def startup():
     """Registra el servicio en el bus al iniciar"""
+    logger.startup("http://sugit:8000")
+    
     await register_service(
         app=app,
         service_name="sugit",
@@ -24,6 +30,8 @@ async def startup():
         description="Gestión de sugerencias de usuarios",
         version="1.0.0"
     )
+    
+    logger.registered(os.getenv("BUS_URL", "http://bus:8000"))
 
 # ============================================================================
 # ENDPOINTS
@@ -36,21 +44,29 @@ def root():
 # Registrar sugerencia
 @app.post("/sugerencias", status_code=status.HTTP_201_CREATED)
 def registrar_sugerencia(sugerencia: dict = Body(...)):
+    logger.request_received("POST", "/sugerencias", sugerencia)
     query = text("""
         INSERT INTO sugerencia (usuario_id, sugerencia, estado, registro_instante)
         VALUES (:usuario_id, :sugerencia, 'PENDIENTE', NOW())
     """)
+    logger.db_query(str(query), sugerencia)
     with engine.begin() as conn:
         result = conn.execute(query, sugerencia)
-        return {"id": result.lastrowid, "message": "Sugerencia registrada"}
+        response_data = {"id": result.lastrowid, "message": "Sugerencia registrada"}
+        logger.response_sent(201, "Sugerencia registrada", f"ID: {result.lastrowid}")
+        return response_data
 
 # Listar sugerencias
 @app.get("/sugerencias", status_code=status.HTTP_200_OK)
 def listar_sugerencias():
+    logger.request_received("GET", "/sugerencias")
     query = text("SELECT * FROM sugerencia")
+    logger.db_query(str(query))
     with engine.connect() as conn:
         result = conn.execute(query)
-        return [dict(row._mapping) for row in result]
+        data = [dict(row._mapping) for row in result]
+        logger.response_sent(200, "Sugerencias obtenidas", f"Total: {len(data)}")
+        return data
 
 # Aprobar sugerencia
 @app.put("/sugerencias/{id}/aprobar", status_code=status.HTTP_200_OK)

@@ -6,11 +6,15 @@ from datetime import datetime, timedelta
 import sys
 sys.path.append('/app')  # Para importar bus_client desde el contenedor
 from bus_client import register_service
+from service_logger import create_service_logger
 
 app = FastAPI(title="Servicio de gestión de Préstamos & Artículos")
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 engine = create_engine(DATABASE_URL, echo=True, future=True)
+
+# Crear logger para este servicio
+logger = create_service_logger("prart")
 
 # ============================================================================
 # REGISTRO EN EL BUS (SOA)
@@ -19,6 +23,8 @@ engine = create_engine(DATABASE_URL, echo=True, future=True)
 @app.on_event("startup")
 async def startup():
     """Registra el servicio en el bus al iniciar"""
+    logger.startup("http://prart:8000")
+    
     await register_service(
         app=app,
         service_name="prart",
@@ -26,6 +32,8 @@ async def startup():
         description="Gestión de préstamos y artículos del catálogo",
         version="1.0.0"
     )
+    
+    logger.registered(os.getenv("BUS_URL", "http://bus:8000"))
 
 # ============================================================================
 # ENDPOINTS
@@ -41,6 +49,7 @@ def buscar_items(
     nombre: str = Query(None),
     tipo: str = Query(None)
 ):
+    logger.request_received("GET", "/items", {"nombre": nombre, "tipo": tipo})
     try:
         query = "SELECT * FROM item WHERE 1=1"
         params = {}
@@ -51,10 +60,15 @@ def buscar_items(
             query += " AND tipo = :tipo"
             params["tipo"] = tipo
 
+        logger.db_query(query, params)
+        
         with engine.connect() as conn:
             result = conn.execute(text(query), params).mappings().all()
+        
+        logger.response_sent(200, "Items obtenidos", f"Total: {len(result)}")
         return result
     except SQLAlchemyError as e:
+        logger.error("SQLAlchemyError", str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 # Registrar reserva con ventana
@@ -124,20 +138,28 @@ def registrar_prestamo(
     item_existencia_id: int = Body(...),
     comentario: str = Body(None)
 ):
+    logger.request_received("POST", "/prestamos", {"solicitud_id": solicitud_id, "item_existencia_id": item_existencia_id})
     try:
         fecha_prestamo = datetime.now()
         fecha_devolucion = fecha_prestamo + timedelta(days=30)
-        with engine.begin() as conn:
-            query = """
+        
+        query = text("""
             INSERT INTO prestamo (item_existencia_id, solicitud_id, fecha_prestamo, fecha_devolucion, estado, renovaciones_realizadas, registro_instante, comentario)
             VALUES (:item_existencia_id, :solicitud_id, :fecha_prestamo, :fecha_devolucion, 'ACTIVO', 0, NOW(), :comentario)
-            """
+        """)
+        
+        logger.db_query(str(query), {"solicitud_id": solicitud_id, "item_existencia_id": item_existencia_id})
+        
+        with engine.begin() as conn:
             conn.execute(
-                text(query),
+                query,
                 {"item_existencia_id": item_existencia_id, "solicitud_id": solicitud_id, "fecha_prestamo": fecha_prestamo, "fecha_devolucion": fecha_devolucion, "comentario": comentario}
             )
+        
+        logger.response_sent(201, "Préstamo registrado", f"Solicitud: {solicitud_id}")
         return {"message": "Préstamo registrado"}
     except SQLAlchemyError as e:
+        logger.error("SQLAlchemyError", str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 # Registrar devolución de ítem

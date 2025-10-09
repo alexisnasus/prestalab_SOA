@@ -8,11 +8,15 @@ import csv
 import sys
 sys.path.append('/app')  # Para importar bus_client desde el contenedor
 from bus_client import register_service
+from service_logger import create_service_logger
 
 app = FastAPI(title="Servicio de Gestión de Reportes")
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 engine = create_engine(DATABASE_URL, echo=True, future=True)
+
+# Crear logger para este servicio
+logger = create_service_logger("gerep")
 
 # ============================================================================
 # REGISTRO EN EL BUS (SOA)
@@ -21,6 +25,8 @@ engine = create_engine(DATABASE_URL, echo=True, future=True)
 @app.on_event("startup")
 async def startup():
     """Registra el servicio en el bus al iniciar"""
+    logger.startup("http://gerep:8000")
+    
     await register_service(
         app=app,
         service_name="gerep",
@@ -28,6 +34,8 @@ async def startup():
         description="Gestión de reportes e historial de préstamos",
         version="1.0.0"
     )
+    
+    logger.registered(os.getenv("BUS_URL", "http://bus:8000"))
 
 # ============================================================================
 # ENDPOINTS
@@ -40,9 +48,10 @@ def root():
 # GET /usuarios/{id}/historial?formato=pdf|csv
 @app.get("/usuarios/{usuario_id}/historial")
 def historial_usuario(usuario_id: int, formato: str = "json"):
+    logger.request_received("GET", f"/usuarios/{usuario_id}/historial", {"formato": formato})
 
     with engine.connect() as conn:
-        rows = conn.execute(text("""
+        query = text("""
             SELECT p.id, p.fecha_prestamo, p.fecha_devolucion, p.estado,
                    i.nombre as item, i.tipo
             FROM prestamo p
@@ -51,7 +60,9 @@ def historial_usuario(usuario_id: int, formato: str = "json"):
             JOIN item i ON ie.item_id = i.id
             WHERE s.usuario_id = :usuario_id
             ORDER BY p.fecha_prestamo DESC
-        """), {"usuario_id": usuario_id}).fetchall()
+        """)
+        logger.db_query(str(query), {"usuario_id": usuario_id})
+        rows = conn.execute(query, {"usuario_id": usuario_id}).fetchall()
 
     historial = [
         {
@@ -65,9 +76,11 @@ def historial_usuario(usuario_id: int, formato: str = "json"):
     ]
 
     if formato == "json":
+        logger.response_sent(200, f"Historial en JSON", f"Usuario: {usuario_id}, Registros: {len(historial)}")
         return JSONResponse(content={"usuario_id": usuario_id, "historial": historial})
 
     elif formato == "csv":
+        logger.response_sent(200, f"Historial en CSV", f"Usuario: {usuario_id}")
         output = io.StringIO()
         writer = csv.DictWriter(output, fieldnames=historial[0].keys())
         writer.writeheader()
@@ -78,6 +91,7 @@ def historial_usuario(usuario_id: int, formato: str = "json"):
                                  headers={"Content-Disposition": f"attachment; filename=historial_{usuario_id}.csv"})
 
     elif formato == "pdf":
+        logger.response_sent(200, f"Historial en PDF", f"Usuario: {usuario_id}")
         buffer = io.BytesIO()
         pdf = canvas.Canvas(buffer)
         pdf.setTitle(f"Historial Usuario {usuario_id}")
@@ -97,6 +111,7 @@ def historial_usuario(usuario_id: int, formato: str = "json"):
                                  headers={"Content-Disposition": f"attachment; filename=historial_{usuario_id}.pdf"})
 
     else:
+        logger.response_sent(400, "Formato no soportado")
         raise HTTPException(status_code=400, detail="Formato no soportado")
 
 # GET /reportes/circulacion?periodo&=...&sede=...

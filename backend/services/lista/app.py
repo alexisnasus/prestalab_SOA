@@ -6,11 +6,15 @@ import os
 import sys
 sys.path.append('/app')  # Para importar bus_client desde el contenedor
 from bus_client import register_service
+from service_logger import create_service_logger
 
 app = FastAPI(title="Servicio de Gestión de Listas de Espera")
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 engine = create_engine(DATABASE_URL, echo=True, future=True)
+
+# Crear logger para este servicio
+logger = create_service_logger("lista")
 
 # ============================================================================
 # REGISTRO EN EL BUS (SOA)
@@ -19,6 +23,8 @@ engine = create_engine(DATABASE_URL, echo=True, future=True)
 @app.on_event("startup")
 async def startup():
     """Registra el servicio en el bus al iniciar"""
+    logger.startup("http://lista:8000")
+    
     await register_service(
         app=app,
         service_name="lista",
@@ -26,6 +32,8 @@ async def startup():
         description="Gestión de listas de espera para artículos",
         version="1.0.0"
     )
+    
+    logger.registered(os.getenv("BUS_URL", "http://bus:8000"))
 
 # ============================================================================
 # ENDPOINTS
@@ -42,11 +50,15 @@ def agregar_lista_espera(
     item_id: int = Body(..., embed=True),
     estado: str = Body("EN ESPERA", embed=True)
 ):
+    logger.request_received("POST", "/lista-espera", {"solicitud_id": solicitud_id, "item_id": item_id, "estado": estado})
+    
     query = text("""
         INSERT INTO lista_espera (solicitud_id, item_id, fecha_ingreso, estado, registro_instante)
         VALUES (:solicitud_id, :item_id, :fecha_ingreso, :estado, :registro_instante)
     """)
     now = datetime.now()
+    
+    logger.db_query(str(query), {"solicitud_id": solicitud_id, "item_id": item_id})
 
     try:
         with engine.begin() as conn:
@@ -57,14 +69,18 @@ def agregar_lista_espera(
                 "estado": estado,
                 "registro_instante": now
             })
-        return {
+        
+        response_data = {
             "message": "Registro agregado exitosamente",
             "solicitud_id": solicitud_id,
             "item_id": item_id,
             "fecha_ingreso": now.isoformat(),
             "estado": estado
         }
+        logger.response_sent(201, "Registro agregado a lista de espera", f"Solicitud: {solicitud_id}, Item: {item_id}")
+        return response_data
     except SQLAlchemyError as e:
+        logger.error("SQLAlchemyError", str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 # Atender registro de lista de espera
@@ -73,8 +89,11 @@ def actualizar_estado_lista_espera(
     id: int = Path(..., gt=0),
     nuevo_estado: str = Body(..., embed=True)
 ):
+    logger.request_received("PUT", f"/lista-espera/{id}", {"nuevo_estado": nuevo_estado})
+    
     nuevo_estado = nuevo_estado.upper().strip()
     if nuevo_estado not in ("ATENDIDA", "CANCELADA"):
+        logger.response_sent(400, "Estado debe ser 'ATENDIDA' o 'CANCELADA'")
         raise HTTPException(status_code=400, detail="El estado debe ser 'ATENDIDA' o 'CANCELADA'")
 
     query = text("""
@@ -82,6 +101,8 @@ def actualizar_estado_lista_espera(
         SET estado = :estado, registro_instante = :instante
         WHERE id = :id
     """)
+    
+    logger.db_query(str(query), {"estado": nuevo_estado, "id": id})
 
     try:
         with engine.begin() as conn:
@@ -91,11 +112,14 @@ def actualizar_estado_lista_espera(
                 "id": id
             })
             if result.rowcount == 0:
+                logger.response_sent(404, "Registro no encontrado")
                 raise HTTPException(status_code=404, detail="Registro no encontrado")
-        return {
-            "message": f"Registro {id} actualizado correctamente"
-        }
+        
+        response_data = {"message": f"Registro {id} actualizado correctamente"}
+        logger.response_sent(200, f"Estado actualizado a {nuevo_estado}", f"ID: {id}")
+        return response_data
     except SQLAlchemyError as e:
+        logger.error("SQLAlchemyError", str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 # Consultar registros de lista de espera por ítem

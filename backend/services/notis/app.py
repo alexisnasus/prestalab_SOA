@@ -6,11 +6,15 @@ import os
 import sys
 sys.path.append('/app')  # Para importar bus_client desde el contenedor
 from bus_client import register_service
+from service_logger import create_service_logger
 
 app = FastAPI(title="Servicio de Gestión de Notificaciones (NOTIS)")
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 engine = create_engine(DATABASE_URL, echo=True, future=True)
+
+# Crear logger para este servicio
+logger = create_service_logger("notis")
 
 # ============================================================================
 # REGISTRO EN EL BUS (SOA)
@@ -19,6 +23,8 @@ engine = create_engine(DATABASE_URL, echo=True, future=True)
 @app.on_event("startup")
 async def startup():
     """Registra el servicio en el bus al iniciar"""
+    logger.startup("http://notis:8000")
+    
     await register_service(
         app=app,
         service_name="notis",
@@ -26,6 +32,8 @@ async def startup():
         description="Gestión de notificaciones multicanal",
         version="1.0.0"
     )
+    
+    logger.registered(os.getenv("BUS_URL", "http://bus:8000"))
 
 # ============================================================================
 # ENDPOINTS
@@ -38,37 +46,53 @@ def root():
 # Crear notificación
 @app.post("/notificaciones", status_code=status.HTTP_201_CREATED)
 def crear_notificacion(notificacion: dict = Body(...)):
+    logger.request_received("POST", "/notificaciones", notificacion)
+    
     query = text("""
         INSERT INTO notificacion (usuario_id, canal, tipo, mensaje, registro_instante)
         VALUES (:usuario_id, :canal, :tipo, :mensaje, NOW())
     """)
+    
+    logger.db_query(str(query), notificacion)
+    
     try:
         with engine.begin() as conn:
             result = conn.execute(query, notificacion)
-            return {"id": result.lastrowid, "message": "Notificación registrada correctamente"}
+            response_data = {"id": result.lastrowid, "message": "Notificación registrada correctamente"}
+            logger.response_sent(201, "Notificación creada", f"ID: {result.lastrowid}")
+            return response_data
     except SQLAlchemyError as e:
+        logger.error("SQLAlchemyError", str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 # Obtener preferencias de notificación del usuario
 @app.get("/preferencias/{usuario_id}", status_code=status.HTTP_200_OK)
 def obtener_preferencias(usuario_id: int = Path(..., description="ID del usuario")):
+    logger.request_received("GET", f"/preferencias/{usuario_id}")
+    
     query = text("""
         SELECT preferencias_notificacion
         FROM usuario
         WHERE id = :usuario_id
     """)
+    
+    logger.db_query(str(query), {"usuario_id": usuario_id})
 
     try:
         with engine.connect() as conn:
             result = conn.execute(query, {"usuario_id": usuario_id}).mappings().first()
             if not result:
+                logger.response_sent(404, "Usuario no encontrado")
                 raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
-            return {
+            response_data = {
                 "usuario_id": usuario_id,
                 "preferencias_notificacion": result["preferencias_notificacion"]
             }
+            logger.response_sent(200, "Preferencias obtenidas", f"Usuario: {usuario_id}")
+            return response_data
     except SQLAlchemyError as e:
+        logger.error("SQLAlchemyError", str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 # Actualizar preferencias de notifiación del usuario

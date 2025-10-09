@@ -20,9 +20,18 @@ import aiosqlite
 import json
 import os
 from pathlib import Path
+import uuid
+import time
+from colorama import Fore, Back, Style, init
 
-# Configuración de logging
-logging.basicConfig(level=logging.INFO)
+# Inicializar colorama para colores en Windows
+init(autoreset=True)
+
+# Configuración de logging mejorada
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(message)s'  # Solo el mensaje, el formato lo manejamos nosotros
+)
 logger = logging.getLogger("SOA_BUS")
 
 # Configuración de persistencia
@@ -50,6 +59,41 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ============================================================================
+# UTILIDADES DE LOGGING CON COLORES
+# ============================================================================
+
+def log_bus_event(event_type: str, message: str, details: Dict = None, trace_id: str = None):
+    """Log formateado con colores para eventos del bus"""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+    
+    # Caracteres ASCII y colores por tipo
+    colors = {
+        "REQUEST": (Fore.CYAN, "[>>]"),
+        "RESPONSE": (Fore.GREEN, "[OK]"),
+        "ERROR": (Fore.RED, "[ERROR]"),
+        "WARNING": (Fore.YELLOW, "[WARN]"),
+        "REGISTER": (Fore.MAGENTA, "[REG]"),
+        "ROUTE": (Fore.BLUE, "[->]"),
+        "HEARTBEAT": (Fore.GREEN, "[HB]"),
+    }
+    
+    color, icon = colors.get(event_type, (Fore.WHITE, "[INFO]"))
+    
+    # Linea principal
+    log_line = f"{Fore.WHITE}[{timestamp}] {color}{icon} BUS {event_type}{Style.RESET_ALL} -> {message}"
+    
+    if trace_id:
+        log_line += f" {Fore.YELLOW}(trace: {trace_id[:8]}...){Style.RESET_ALL}"
+    
+    print(log_line)
+    
+    # Detalles con indentacion
+    if details:
+        for key, value in details.items():
+            print(f"{Fore.WHITE}  |-- {Fore.CYAN}{key}{Style.RESET_ALL}: {value}")
+
 
 # ============================================================================
 # MODELOS DE DATOS
@@ -83,7 +127,7 @@ class ServiceInfo(BaseModel):
 class MessageRequest(BaseModel):
     """Mensaje para enrutar a un servicio"""
     target_service: str = Field(..., description="Servicio destino")
-    method: str = Field("GET", description="Método HTTP")
+    method: str = Field("GET", description="Metodo HTTP")
     endpoint: str = Field(..., description="Endpoint del servicio")
     payload: Optional[Dict[str, Any]] = Field(None, description="Datos a enviar")
     headers: Optional[Dict[str, str]] = Field(None, description="Headers adicionales")
@@ -447,9 +491,32 @@ async def monitor_services():
 async def route_message(message: MessageRequest) -> MessageResponse:
     """Enruta un mensaje al servicio correspondiente"""
     
+    # Generar trace_id único para esta transacción
+    trace_id = str(uuid.uuid4())
+    start_time = time.time()
+    
+    # LOG: Mensaje recibido en el bus
+    log_bus_event(
+        "REQUEST",
+        f"route_message()",
+        details={
+            "Trace ID": trace_id,
+            "Servicio destino": message.target_service,
+            "Metodo": message.method,
+            "Endpoint": message.endpoint,
+            "Payload": str(message.payload)[:100] if message.payload else "None",
+            "Estado": "ENRUTANDO..."
+        }
+    )
+    
     # Verificar que el servicio existe
     service = registry.get_service(message.target_service)
     if not service:
+        log_bus_event(
+            "ERROR",
+            f"Servicio '{message.target_service}' no encontrado",
+            trace_id=trace_id
+        )
         return MessageResponse(
             success=False,
             error=f"Servicio '{message.target_service}' no encontrado en el registro",
@@ -458,6 +525,11 @@ async def route_message(message: MessageRequest) -> MessageResponse:
     
     # Verificar estado del servicio
     if service.status == ServiceStatus.INACTIVE:
+        log_bus_event(
+            "WARNING",
+            f"Servicio '{message.target_service}' está INACTIVO",
+            trace_id=trace_id
+        )
         return MessageResponse(
             success=False,
             error=f"Servicio '{message.target_service}' está inactivo",
@@ -473,12 +545,20 @@ async def route_message(message: MessageRequest) -> MessageResponse:
         "service": message.target_service,
         "method": message.method,
         "endpoint": message.endpoint,
-        "status": "PROCESSING"
+        "status": "PROCESSING",
+        "trace_id": trace_id
     }
     
     try:
         async with httpx.AsyncClient(timeout=message.timeout) as client:
-            # Seleccionar método HTTP
+            # LOG: Enviando request al servicio
+            log_bus_event(
+                "ROUTE",
+                f"Enviando {message.method} -> {service.service_url}{message.endpoint}",
+                trace_id=trace_id
+            )
+            
+            # Seleccionar metodo HTTP
             if message.method.upper() == "GET":
                 response = await client.get(url, params=message.payload, headers=message.headers or {})
             elif message.method.upper() == "POST":
@@ -488,7 +568,10 @@ async def route_message(message: MessageRequest) -> MessageResponse:
             elif message.method.upper() == "DELETE":
                 response = await client.delete(url, headers=message.headers or {})
             else:
-                raise ValueError(f"Método HTTP no soportado: {message.method}")
+                raise ValueError(f"Metodo HTTP no soportado: {message.method}")
+            
+            # Calcular latencia
+            latency_ms = round((time.time() - start_time) * 1000, 2)
             
             # Parsear respuesta
             try:
@@ -498,6 +581,20 @@ async def route_message(message: MessageRequest) -> MessageResponse:
             
             log_entry["status"] = "SUCCESS"
             log_entry["status_code"] = response.status_code
+            log_entry["latency_ms"] = latency_ms
+            
+            # LOG: Respuesta recibida
+            log_bus_event(
+                "RESPONSE",
+                f"Respuesta de {message.target_service}",
+                details={
+                    "Trace ID": trace_id,
+                    "Status Code": response.status_code,
+                    "Latencia": f"{latency_ms}ms",
+                    "Resultado": "SUCCESS" if response.status_code < 400 else "ERROR"
+                }
+            )
+            
             await registry.log_message(log_entry)
             await registry._increment_stat("total_messages")
             
@@ -509,7 +606,21 @@ async def route_message(message: MessageRequest) -> MessageResponse:
             )
             
     except httpx.TimeoutException:
+        latency_ms = round((time.time() - start_time) * 1000, 2)
         log_entry["status"] = "TIMEOUT"
+        log_entry["latency_ms"] = latency_ms
+        
+        # LOG: Timeout
+        log_bus_event(
+            "ERROR",
+            f"TIMEOUT al comunicarse con {message.target_service}",
+            details={
+                "Trace ID": trace_id,
+                "Latencia": f"{latency_ms}ms",
+                "Timeout configurado": f"{message.timeout}s"
+            }
+        )
+        
         await registry.log_message(log_entry)
         await registry._increment_stat("timeout_errors")
         return MessageResponse(
@@ -518,8 +629,22 @@ async def route_message(message: MessageRequest) -> MessageResponse:
             service=message.target_service
         )
     except Exception as e:
+        latency_ms = round((time.time() - start_time) * 1000, 2)
         log_entry["status"] = "ERROR"
         log_entry["error"] = str(e)
+        log_entry["latency_ms"] = latency_ms
+        
+        # LOG: Error general
+        log_bus_event(
+            "ERROR",
+            f"Error en comunicación con {message.target_service}",
+            details={
+                "Trace ID": trace_id,
+                "Error": str(e),
+                "Latencia": f"{latency_ms}ms"
+            }
+        )
+        
         await registry.log_message(log_entry)
         await registry._increment_stat("total_errors")
         return MessageResponse(
@@ -567,6 +692,20 @@ def root():
 @app.post("/register", status_code=201)
 async def register_service(service: ServiceInfo):
     """Registra un nuevo servicio en el bus (con persistencia)"""
+    
+    # LOG: Registro de servicio
+    log_bus_event(
+        "REGISTER",
+        f"Nuevo servicio registrado: {service.service_name}",
+        details={
+            "Servicio": service.service_name,
+            "URL": service.service_url,
+            "Versión": service.version,
+            "Endpoints": len(service.endpoints),
+            "Descripción": service.description
+        }
+    )
+    
     if await registry.register(service):
         return {
             "message": f"Servicio '{service.service_name}' registrado exitosamente",
@@ -634,6 +773,14 @@ async def get_service_health(service_name: str):
 @app.post("/heartbeat/{service_name}")
 async def service_heartbeat(service_name: str):
     """Recibe latido (heartbeat) de un servicio"""
+    
+    # LOG: Heartbeat recibido
+    log_bus_event(
+        "HEARTBEAT",
+        f"Heartbeat recibido de '{service_name}'",
+        details={"Servicio": service_name, "Estado": "ACTIVE"}
+    )
+    
     if await registry.update_heartbeat(service_name):
         return {"message": f"Heartbeat recibido de '{service_name}'"}
     raise HTTPException(status_code=404, detail=f"Servicio '{service_name}' no registrado")

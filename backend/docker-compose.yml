@@ -30,7 +30,10 @@ services:
       - "8000:8000"
     environment:
       - PYTHONUNBUFFERED=1
-      - BUS_DB_PATH=/data/bus_data.db   
+      - BUS_DB_PATH=/data/bus_data.db
+      - PYTHONIOENCODING=utf-8
+      - LANG=C.UTF-8
+      - LC_ALL=C.UTF-8
     volumes:
       - ./bus_data:/data                
     healthcheck:
@@ -56,11 +59,16 @@ services:
         condition: service_healthy
 
   gerep:
-    build: ./services/gerep
+    build:
+      context: .
+      dockerfile: ./services/gerep/Dockerfile
     container_name: soa_gerep
     environment:
       - DATABASE_URL=mysql+pymysql://soa_user:soa_password@db:3306/soa_db
       - BUS_URL=http://bus:8000
+      - PYTHONIOENCODING=utf-8
+      - LANG=C.UTF-8
+      - LC_ALL=C.UTF-8
     depends_on:
       db:
         condition: service_healthy
@@ -70,11 +78,16 @@ services:
       - "8001:8000"
 
   lista:
-    build: ./services/lista
+    build:
+      context: .
+      dockerfile: ./services/lista/Dockerfile
     container_name: soa_lista
     environment:
       - DATABASE_URL=mysql+pymysql://soa_user:soa_password@db:3306/soa_db
       - BUS_URL=http://bus:8000
+      - PYTHONIOENCODING=utf-8
+      - LANG=C.UTF-8
+      - LC_ALL=C.UTF-8
     depends_on:
       db:
         condition: service_healthy
@@ -84,11 +97,16 @@ services:
       - "8002:8000"
 
   multa:
-    build: ./services/multa
+    build:
+      context: .
+      dockerfile: ./services/multa/Dockerfile
     container_name: soa_multa
     environment:
       - DATABASE_URL=mysql+pymysql://soa_user:soa_password@db:3306/soa_db
       - BUS_URL=http://bus:8000
+      - PYTHONIOENCODING=utf-8
+      - LANG=C.UTF-8
+      - LC_ALL=C.UTF-8
     depends_on:
       db:
         condition: service_healthy
@@ -98,11 +116,16 @@ services:
       - "8003:8000"
 
   notis:
-    build: ./services/notis
+    build:
+      context: .
+      dockerfile: ./services/notis/Dockerfile
     container_name: soa_notis
     environment:
       - DATABASE_URL=mysql+pymysql://soa_user:soa_password@db:3306/soa_db
       - BUS_URL=http://bus:8000
+      - PYTHONIOENCODING=utf-8
+      - LANG=C.UTF-8
+      - LC_ALL=C.UTF-8
     depends_on:
       db:
         condition: service_healthy
@@ -112,11 +135,16 @@ services:
       - "8004:8000"
 
   prart:
-    build: ./services/prart
+    build:
+      context: .
+      dockerfile: ./services/prart/Dockerfile
     container_name: soa_prart
     environment:
       - DATABASE_URL=mysql+pymysql://soa_user:soa_password@db:3306/soa_db
       - BUS_URL=http://bus:8000
+      - PYTHONIOENCODING=utf-8
+      - LANG=C.UTF-8
+      - LC_ALL=C.UTF-8
     depends_on:
       db:
         condition: service_healthy
@@ -126,11 +154,16 @@ services:
       - "8005:8000"
 
   regist:
-    build: ./services/regist
+    build:
+      context: .
+      dockerfile: ./services/regist/Dockerfile
     container_name: soa_regist
     environment:
       - DATABASE_URL=mysql+pymysql://soa_user:soa_password@db:3306/soa_db
       - BUS_URL=http://bus:8000
+      - PYTHONIOENCODING=utf-8
+      - LANG=C.UTF-8
+      - LC_ALL=C.UTF-8
     depends_on:
       db:
         condition: service_healthy
@@ -140,11 +173,16 @@ services:
       - "8006:8000"
 
   sugit:
-    build: ./services/sugit
+    build:
+      context: .
+      dockerfile: ./services/sugit/Dockerfile
     container_name: soa_sugit
     environment:
       - DATABASE_URL=mysql+pymysql://soa_user:soa_password@db:3306/soa_db
       - BUS_URL=http://bus:8000
+      - PYTHONIOENCODING=utf-8
+      - LANG=C.UTF-8
+      - LC_ALL=C.UTF-8
     depends_on:
       db:
         condition: service_healthy

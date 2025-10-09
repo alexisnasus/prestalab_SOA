@@ -58,6 +58,7 @@ Sistema de préstamos bibliotecarios con **Arquitectura Orientada a Servicios (S
 ### Levantar Sistema
 
 **Primera vez (con rebuild):**
+
 ```bash
 cd backend
 docker-compose down --volumes --remove-orphans
@@ -65,6 +66,7 @@ docker-compose up --build
 ```
 
 **Ejecuciones posteriores:**
+
 ```bash
 cd backend
 docker-compose up -d
@@ -82,6 +84,15 @@ docker-compose down
 ```bash
 cd backend
 docker-compose down --volumes --remove-orphans
+```
+
+### Reconstruir Imágenes (Después de cambios en código)
+
+```bash
+cd backend
+docker-compose down
+docker-compose build --no-cache
+docker-compose up -d
 ```
 
 ### Ver Logs
@@ -183,6 +194,91 @@ Invoke-RestMethod -Uri "http://localhost:8000/heartbeat/mi_servicio" -Method Pos
 **Bash:**
 ```bash
 curl -X POST http://localhost:8000/heartbeat/mi_servicio
+```
+
+---
+
+## 🔍 Monitoreo y Trazabilidad del Sistema
+
+El sistema incluye **logs detallados con colores** y **trazabilidad de transacciones** mediante Trace IDs únicos.
+
+### Monitor Automático (Recomendado)
+
+**Ejecutar en una terminal PowerShell:**
+
+```powershell
+cd backend
+.\monitor_services.ps1
+```
+
+**¿Qué hace?**
+1. Levanta todos los servicios con `docker-compose up -d`
+2. Abre 8 ventanas de PowerShell (una por cada servicio + bus)
+3. Muestra logs en tiempo real con colores:
+   - 🟦 **Cyan**: Requests recibidos
+   - 🟩 **Green**: Respuestas exitosas
+   - 🟥 **Red**: Errores
+   - 🟨 **Yellow**: Warnings y consultas SQL
+   - 🟪 **Magenta**: Registros de servicios
+
+4. **Al presionar cualquier tecla**: Cierra todas las ventanas y detiene los servicios automáticamente
+
+### Cliente de Prueba Interactivo
+
+```powershell
+cd backend
+.\test_client.ps1
+```
+
+Menú con 8 ejemplos de peticiones pre-configuradas para probar la trazabilidad.
+
+### Ver Logs Manualmente
+
+```bash
+# Logs del bus (muestra Trace IDs y enrutamiento)
+docker logs -f soa_bus
+
+# Logs de un servicio específico
+docker logs -f soa_regist
+
+# Todos los logs mezclados
+docker-compose logs -f
+```
+
+### Endpoints de Monitoreo
+
+| Endpoint | Descripción |
+|----------|-------------|
+| `GET /stats` | Estadísticas del bus (requests, errores, etc.) |
+| `GET /discover` | Servicios registrados y su estado |
+| `GET /logs?limit=50` | Últimos logs de comunicación |
+| `GET /health/{service}` | Estado de salud de un servicio |
+
+### Cómo Funciona la Trazabilidad
+
+1. **Trace ID Único**: Cada request que entra al bus recibe un UUID único
+2. **Propagación**: El Trace ID se propaga a través del bus → servicio → base de datos
+3. **Logs Correlacionados**: Todos los logs comparten el mismo Trace ID, permitiendo seguir una transacción completa
+4. **Medición de Latencia**: Se mide el tiempo desde que llega al bus hasta que se envía la respuesta
+5. **Persistencia**: Los logs se guardan en SQLite (`bus_data/bus_data.db`) y se muestran en consola
+
+**Ejemplo de flujo trazado:**
+
+```
+[16:32:43.382] [->] BUS ROUTE -> Enviando GET -> http://regist:8000/usuarios/140987654 (trace: eb8bec50...)
+[16:32:43.401] [REGIST] [<<] REQUEST -> Request recibido
+  |-- Metodo: GET
+  |-- Endpoint: /usuarios/140987654
+[16:32:43.425] [REGIST] [DB] DB QUERY -> Ejecutando consulta SQL
+  |-- Query: SELECT * FROM usuarios WHERE usuario_id = ?
+[16:32:43.459] [REGIST] [OK] RESPONSE -> Respuesta enviada
+  |-- Status Code: 200
+  |-- Tiempo procesamiento: 58ms
+[16:32:43.459] [OK] BUS RESPONSE -> Respuesta de regist
+  |-- Trace ID: eb8bec50-b696-4c45-8a98-d31397a2c77b
+  |-- Status Code: 200
+  |-- Latencia: 91.84ms
+  |-- Resultado: SUCCESS
 ```
 
 ---
