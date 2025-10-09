@@ -147,6 +147,7 @@ docker-compose restart regist
 ### Registrar un Servicio
 
 **PowerShell:**
+
 ```powershell
 $body = @{
     service_name = "mi_servicio"
@@ -160,6 +161,7 @@ Invoke-RestMethod -Uri "http://localhost:8000/register" -Method Post -ContentTyp
 ```
 
 **Bash:**
+
 ```bash
 curl -X POST http://localhost:8000/register \
   -H "Content-Type: application/json" \
@@ -175,11 +177,13 @@ curl -X POST http://localhost:8000/register \
 ### Desregistrar un Servicio
 
 **PowerShell:**
+
 ```powershell
 Invoke-RestMethod -Uri "http://localhost:8000/unregister/mi_servicio" -Method Delete
 ```
 
 **Bash:**
+
 ```bash
 curl -X DELETE http://localhost:8000/unregister/mi_servicio
 ```
@@ -187,11 +191,13 @@ curl -X DELETE http://localhost:8000/unregister/mi_servicio
 ### Enviar Heartbeat
 
 **PowerShell:**
+
 ```powershell
 Invoke-RestMethod -Uri "http://localhost:8000/heartbeat/mi_servicio" -Method Post
 ```
 
 **Bash:**
+
 ```bash
 curl -X POST http://localhost:8000/heartbeat/mi_servicio
 ```
@@ -212,6 +218,7 @@ cd backend
 ```
 
 **¿Qué hace?**
+
 1. Levanta todos los servicios con `docker-compose up -d`
 2. Abre 8 ventanas de PowerShell (una por cada servicio + bus)
 3. Muestra logs en tiempo real con colores:
@@ -222,15 +229,6 @@ cd backend
    - 🟪 **Magenta**: Registros de servicios
 
 4. **Al presionar cualquier tecla**: Cierra todas las ventanas y detiene los servicios automáticamente
-
-### Cliente de Prueba Interactivo
-
-```powershell
-cd backend
-.\test_client.ps1
-```
-
-Menú con 8 ejemplos de peticiones pre-configuradas para probar la trazabilidad.
 
 ### Ver Logs Manualmente
 
@@ -262,30 +260,12 @@ docker-compose logs -f
 4. **Medición de Latencia**: Se mide el tiempo desde que llega al bus hasta que se envía la respuesta
 5. **Persistencia**: Los logs se guardan en SQLite (`bus_data/bus_data.db`) y se muestran en consola
 
-**Ejemplo de flujo trazado:**
-
-```
-[16:32:43.382] [->] BUS ROUTE -> Enviando GET -> http://regist:8000/usuarios/140987654 (trace: eb8bec50...)
-[16:32:43.401] [REGIST] [<<] REQUEST -> Request recibido
-  |-- Metodo: GET
-  |-- Endpoint: /usuarios/140987654
-[16:32:43.425] [REGIST] [DB] DB QUERY -> Ejecutando consulta SQL
-  |-- Query: SELECT * FROM usuarios WHERE usuario_id = ?
-[16:32:43.459] [REGIST] [OK] RESPONSE -> Respuesta enviada
-  |-- Status Code: 200
-  |-- Tiempo procesamiento: 58ms
-[16:32:43.459] [OK] BUS RESPONSE -> Respuesta de regist
-  |-- Trace ID: eb8bec50-b696-4c45-8a98-d31397a2c77b
-  |-- Status Code: 200
-  |-- Latencia: 91.84ms
-  |-- Resultado: SUCCESS
-```
-
 ---
 
 ## 🎯 Operaciones de Servicios (SOA)
 
 ### REGIST - Gestión de Usuarios (Puerto 8006)
+
 | Método | Endpoint | Descripción |
 |--------|----------|-------------|
 | GET | `/` | Health check del servicio |
@@ -295,6 +275,7 @@ docker-compose logs -f
 | PUT | `/usuarios/{id}` | Actualizar datos de usuario |
 
 ### PRART - Préstamos & Artículos (Puerto 8005)
+
 | Método | Endpoint | Descripción |
 |--------|----------|-------------|
 | GET | `/` | Health check del servicio |
@@ -308,6 +289,7 @@ docker-compose logs -f
 | PUT | `/items/{existencia_id}/estado` | Actualizar estado de artículo |
 
 ### MULTA - Multas & Bloqueos (Puerto 8003)
+
 | Método | Endpoint | Descripción |
 |--------|----------|-------------|
 | GET | `/` | Health check del servicio |
@@ -316,6 +298,7 @@ docker-compose logs -f
 | PUT | `/usuarios/{id}/estado` | Cambiar estado de usuario (bloquear/desbloquear) |
 
 ### LISTA - Listas de Espera (Puerto 8002)
+
 | Método | Endpoint | Descripción |
 |--------|----------|-------------|
 | GET | `/` | Health check del servicio |
@@ -324,6 +307,7 @@ docker-compose logs -f
 | GET | `/lista-espera/{item_id}` | Consultar lista de espera por artículo |
 
 ### NOTIS - Notificaciones (Puerto 8004)
+
 | Método | Endpoint | Descripción |
 |--------|----------|-------------|
 | GET | `/` | Health check del servicio |
@@ -332,6 +316,7 @@ docker-compose logs -f
 | PUT | `/preferencias/{usuario_id}` | Actualizar preferencias de notificación |
 
 ### GEREP - Reportes & Historial (Puerto 8001)
+
 | Método | Endpoint | Descripción |
 |--------|----------|-------------|
 | GET | `/` | Health check del servicio |
@@ -339,6 +324,7 @@ docker-compose logs -f
 | GET | `/reportes/circulacion?periodo=YYYY-MM&sede=id` | Métricas de circulación por sede |
 
 ### SUGIT - Sugerencias (Puerto 8007)
+
 | Método | Endpoint | Descripción |
 |--------|----------|-------------|
 | GET | `/` | Health check del servicio |
