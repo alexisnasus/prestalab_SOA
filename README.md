@@ -47,12 +47,9 @@ Sistema de préstamos bibliotecarios con **Arquitectura Orientada a Servicios (S
 ### Características del ESB
 
 ✅ **Auto-registro** - Servicios se registran automáticamente al iniciar  
-✅ **Service Discovery** - Descubrimiento dinámico de servicios  
-✅ **Message Router** - Enrutamiento inteligente de mensajes  
-✅ **Health Monitoring** - Monitoreo de salud cada 30s  
+✅ **Health Monitoring** - Monitoreo de salud cada 30s
 ✅ **Persistencia SQLite** - Registro sobrevive reinicios  
-✅ **Logs Centralizados** - Historial de comunicaciones  
-✅ **Métricas** - Estadísticas por servicio  
+✅ **Logs Centralizados** - Historial de comunicaciones
 
 ---
 
