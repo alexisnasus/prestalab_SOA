@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PrestaLab · Catálogo</title>
+  <link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body>
+  <!-- NAVBAR -->
+  <header class="nav">
+    <div class="nav-left">
+      <span class="brand">PrestaLab</span>
+      <a href="dashboard.html" class="nav-link">Inicio</a>
+      <a href="catalog.html" class="nav-link active">Catálogo</a>
+    </div>
+    <div class="nav-right">
+      <span id="userBadge" class="badge">Cargando…</span>
+      <button id="btnLogout" class="btn btn-ghost">Cerrar sesión</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="card">
+      <h1>Catálogo</h1>
+      <p>Explora los artículos disponibles. Filtra por nombre o tipo.</p>
+
+      <!-- Filtros -->
+      <form id="filters" class="form" style="margin-top: 10px;">
+        <div class="field">
+          <label for="q">Buscar por nombre</label>
+          <input id="q" type="search" placeholder="Ej: Raspberry, Arduino, Kindle…" />
+        </div>
+
+        <div class="field">
+          <label for="tipo">Tipo</label>
+          <select id="tipo">
+            <option value="">Todos</option>
+            <!-- Se poblará dinámicamente con los tipos devueltos -->
+          </select>
+        </div>
+
+        <div class="actions">
+          <button class="btn" id="btnSearch" type="submit">Buscar</button>
+          <button class="btn btn-ghost" id="btnClear" type="button">Limpiar</button>
+        </div>
+      </form>
+
+      <!-- Estado de carga / error -->
+      <div id="state" class="alert" style="display:none;"></div>
+
+      <!-- Resultados -->
+      <div id="results" class="grid"></div>
+    </section>
+  </main>
+
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/catalog.js"></script>
+  <script>
+    (function () {
+      window.Auth.requireAuth();
+      const u = window.Auth.getUser();
+      document.getElementById('userBadge').textContent = u?.correo || 'Usuario';
+      document.getElementById('btnLogout').addEventListener('click', () => window.Auth.logout());
+    })();
+  </script>
+</body>
+</html>

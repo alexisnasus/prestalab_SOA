@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PrestaLab · Dashboard</title>
+  <link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body>
+  <!-- NAVBAR -->
+  <header class="nav">
+    <div class="nav-left">
+      <span class="brand">PrestaLab</span>
+      <a href="dashboard.html" class="nav-link active">Inicio</a>
+      <a href="catalog.html" class="nav-link">Catálogo</a>
+      <!-- Dejamos enlaces futuros deshabilitados para evitar 404 por ahora
+      <a href="loans.html" class="nav-link disabled" aria-disabled="true">Mis préstamos</a>
+      <a href="reservas.html" class="nav-link disabled" aria-disabled="true">Reservas</a>
+      -->
+    </div>
+    <div class="nav-right">
+      <span id="userBadge" class="badge">Cargando…</span>
+      <button id="btnLogout" class="btn btn-ghost">Cerrar sesión</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="card">
+      <h1>Dashboard</h1>
+      <p id="hello">Cargando…</p>
+      <p id="myId" style="opacity:.9">ID de usuario: (buscando…)</p>
+    </section>
+  </main>
+
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+<script src="js/config.js"></script>
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+<script>
+  (async function () {
+    // Protege la ruta
+    window.Auth.requireAuth();
+
+    // Saludo + badge
+    const u = window.Auth.getUser();
+    const correo = (u?.correo || '').toLowerCase();
+    document.getElementById('hello').textContent =
+      correo ? `Sesión iniciada: ${correo}` : 'Sesión iniciada';
+    document.getElementById('userBadge').textContent = correo || 'Usuario';
+
+    // Resolver y mostrar ID
+    const idEl = document.getElementById('myId');
+    try {
+      const id = await window.Auth.ensureUserId();
+      idEl.textContent = id ? `ID de usuario: ${id}` : 'ID de usuario: no encontrado';
+    } catch {
+      idEl.textContent = 'ID de usuario: no encontrado';
+    }
+
+    // Logout
+    document.getElementById('btnLogout').addEventListener('click', () => window.Auth.logout());
+  })();
+</script>
+
+</body>
+</html>
