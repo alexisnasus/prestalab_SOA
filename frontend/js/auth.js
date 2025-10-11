@@ -30,10 +30,10 @@
   // -------------------- login/logout --------------------
   // El backend valida: { correo, password: "mock_password" }
   async function login(correo, password) {
-    const payload = { correo, email: correo, password };
+    const payload = { correo, password };
     const res = await window.API.post(S.AUTH, "/auth/login", payload, { auth: false });
-    if (!res || !res.token) throw new Error("Respuesta de login inválida");
-    saveSession(res.token, { correo });
+    if (!res || !res.token || !res.user) throw new Error("Respuesta de login inválida");
+    saveSession(res.token, res.user);
     return res;
   }
 

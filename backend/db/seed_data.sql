@@ -154,15 +154,15 @@ INSERT INTO item_existencia (id, item_id, sede_id, codigo, estado, registro_inst
 -- USUARIOS
 -- ======================================================================
 
-INSERT INTO usuario (id, nombre, correo, tipo, telefono, estado, preferencias_notificacion, registro_instante) VALUES
-(140987654, 'Administrador General', 'admin.prestalab@udp.cl', 'ENCARGADO', '+56955554444', 'ACTIVO', 1, '2025-09-29 17:30:00'),
-(152398765, 'Marcela Soto', 'marcela.soto_d@mail.udp.cl', 'DOCENTE', '+56966554433', 'INACTIVO', 0, '2025-09-29 17:25:00'),
-(165982311, 'Francisco Herrera', 'francisco.herrera_d@mail.udp.cl', 'DOCENTE', '+56977665544', 'ACTIVO', 1, '2025-09-29 17:20:00'),
-(174892345, 'Camila Morales', 'camila.morales_s@mail.udp.cl', 'ESTUDIANTE', '+56988776655', 'DEUDOR', 1, '2025-09-29 17:15:00'),
-(189453276, 'Ignacio Fernández', 'ignacio.fernandez_s@mail.udp.cl', 'ESTUDIANTE', '+56999887766', 'SUSPENDIDO', 0, '2025-09-29 17:10:00'),
-(197407514, 'Rafael Campos', 'rafael.campos_s@mail.udp.cl', 'ESTUDIANTE', '+56942857599', 'ACTIVO', 1, '2025-09-29 17:03:07'),
-(204587321, 'Valentina Rojas', 'valentina.rojas_s@mail.udp.cl', 'ESTUDIANTE', '+56991234567', 'ACTIVO', 1, '2025-09-29 17:05:00'),
-(214166283, 'Juan Campos', 'juan.campos_s@mail.udp.cl', 'ESTUDIANTE', '+5698765432', 'ACTIVO', 1, '2025-09-30 15:12:09');
+INSERT INTO usuario (id, nombre, correo, tipo, telefono, password, estado, preferencias_notificacion, registro_instante) VALUES
+(140987654, 'Administrador General', 'admin.prestalab@udp.cl', 'ENCARGADO', '+56955554444', 'Admin123!', 'ACTIVO', 1, '2025-09-29 17:30:00'),
+(152398765, 'Marcela Soto', 'marcela.soto_d@mail.udp.cl', 'DOCENTE', '+56966554433', 'Docente123', 'INACTIVO', 0, '2025-09-29 17:25:00'),
+(165982311, 'Francisco Herrera', 'francisco.herrera_d@mail.udp.cl', 'DOCENTE', '+56977665544', 'Docente456', 'ACTIVO', 1, '2025-09-29 17:20:00'),
+(174892345, 'Camila Morales', 'camila.morales_s@mail.udp.cl', 'ESTUDIANTE', '+56988776655', 'Estudiante123', 'DEUDOR', 1, '2025-09-29 17:15:00'),
+(189453276, 'Ignacio Fernández', 'ignacio.fernandez_s@mail.udp.cl', 'ESTUDIANTE', '+56999887766', 'Estudiante456', 'SUSPENDIDO', 0, '2025-09-29 17:10:00'),
+(197407514, 'Rafael Campos', 'rafael.campos_s@mail.udp.cl', 'ESTUDIANTE', '+56942857599', 'Rafael123', 'ACTIVO', 1, '2025-09-29 17:03:07'),
+(204587321, 'Valentina Rojas', 'valentina.rojas_s@mail.udp.cl', 'ESTUDIANTE', '+56991234567', 'Valentina123', 'ACTIVO', 1, '2025-09-29 17:05:00'),
+(214166283, 'Juan Campos', 'juan.campos_s@mail.udp.cl', 'ESTUDIANTE', '+5698765432', 'Juan123', 'ACTIVO', 1, '2025-09-30 15:12:09');
 
 -- ======================================================================
 -- SOLICITUDES

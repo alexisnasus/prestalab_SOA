@@ -38,10 +38,14 @@
     const name = (nombre.value || '').trim();
     const userType = (tipo.value || 'ESTUDIANTE').trim();
     const phone = (telefono.value || '').trim();
-    const pass = (password.value || 'mock_password').trim(); // demo backend
+    const pass = (password.value || '').trim();
 
     if (!name || !mail) {
       showErr('Completa nombre y correo.');
+      return;
+    }
+    if (!pass) {
+      showErr('Debes establecer una contraseña.');
       return;
     }
 
@@ -49,28 +53,27 @@
     // - id: NULL para que MySQL auto-incremente
     // - telefono: NOT NULL → usa '' si viene vacío
     const payload = {
-      id: null,
       nombre: name,
       correo: mail,
       tipo: userType,
       telefono: phone || '',             // NOT NULL en la tabla
       estado: "ACTIVO",
       preferencias_notificacion: 1,
-      password: pass                     // no se guarda, pero algunos endpoints lo piden
+      password: pass
     };
 
     try {
-  setLoading(true);
-  const S = window.PRESTALAB?.SERVICES || {};
-  const created = await window.API.post(S.AUTH, "/usuarios", payload, { auth: false });
+      setLoading(true);
+      const S = window.PRESTALAB?.SERVICES || {};
+      const created = await window.API.post(S.AUTH, "/usuarios", payload, { auth: false });
 
-  // ⬇️ si el servicio devuelve { id: <nuevo_id>, ... } lo guardamos
-  if (created && created.id) {
-    localStorage.setItem('pl_user_id', String(created.id));
-  }
+      const newId = created?.user?.id ?? created?.id ?? null;
+      if (newId) {
+        localStorage.setItem('pl_user_id', String(newId));
+      }
 
-  showOk('Cuenta creada correctamente. Te enviaremos al login…');
-  setTimeout(() => location.href = "index.html", 900);
+      showOk('Cuenta creada correctamente. Te enviaremos al login…');
+      setTimeout(() => location.href = "index.html", 900);
     } catch (e) {
       console.error('[SIGNUP] Error', e);
       let msg = 'No se pudo crear la cuenta.';

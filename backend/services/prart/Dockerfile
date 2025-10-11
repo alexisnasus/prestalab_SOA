@@ -7,6 +7,6 @@ COPY ./services/prart/app.py /app
 COPY ./bus_client.py /app/bus_client.py
 COPY ./service_logger.py /app/service_logger.py
 
-RUN pip install fastapi uvicorn sqlalchemy pymysql httpx colorama
+RUN pip install fastapi uvicorn sqlalchemy pymysql httpx colorama pydantic
 
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]

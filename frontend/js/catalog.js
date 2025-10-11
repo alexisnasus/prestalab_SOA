@@ -84,8 +84,13 @@
 
     // 1) Intento "correo-first"
     const legacyId = localStorage.getItem(LS_UID);
+    const userId = window.Auth?.getUser?.()?.id;
     const body = { tipo: 'PRÉSTAMO', correo };
-    if (legacyId && /^\d+$/.test(legacyId)) body.usuario_id = Number(legacyId); // compat si ya lo tenías
+    if (userId && Number.isInteger(Number(userId))) {
+      body.usuario_id = Number(userId);
+    } else if (legacyId && /^\d+$/.test(legacyId)) {
+      body.usuario_id = Number(legacyId); // compat si ya lo tenías
+    }
 
     try {
       return await API.post(S.CATALOG, '/solicitudes', body, { auth: true });

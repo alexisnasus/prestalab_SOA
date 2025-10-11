@@ -39,19 +39,21 @@
       err.style.display = 'block';
       return;
     }
-
-    // El backend de demo exige exactamente "mock_password".
-    const passToSend = passRaw || 'mock_password';
+    if (!passRaw) {
+      err.textContent = 'Ingresa tu contraseña.';
+      err.style.display = 'block';
+      return;
+    }
 
     try {
       setLoading(true);
-      await window.Auth.login(mail, passToSend);
+      await window.Auth.login(mail, passRaw);
       location.href = "dashboard.html";
     } catch (e) {
       console.error('[LOGIN] Error', e);
       let msg = 'No se pudo iniciar sesión.';
       if (e.status === 404) msg = 'Usuario no encontrado.';
-      else if (e.status === 401) msg = 'Credenciales inválidas (usa la clave de demo: "mock_password").';
+      else if (e.status === 401) msg = 'Credenciales inválidas.';
       else if (e.payload && (e.payload.message || e.payload.detail)) msg = e.payload.message || e.payload.detail;
       err.textContent = msg;
       err.style.display = 'block';

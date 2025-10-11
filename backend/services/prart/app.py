@@ -3,7 +3,9 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 import os
 from datetime import datetime, timedelta
+from typing import Optional
 import sys
+from pydantic import BaseModel, Field
 sys.path.append('/app')  # Para importar bus_client desde el contenedor
 from bus_client import register_service
 from service_logger import create_service_logger
@@ -111,24 +113,69 @@ def cancelar_reserva(reserva_id: int = Path(...)):
     except SQLAlchemyError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+class SolicitudCreate(BaseModel):
+    usuario_id: Optional[int] = Field(default=None, description="ID del usuario solicitante")
+    correo: Optional[str] = Field(default=None, description="Correo del usuario solicitante")
+    tipo: str = Field(..., min_length=1, description="Tipo de solicitud")
+
+
 # Registrar solicitud
 @app.post("/solicitudes", status_code=status.HTTP_201_CREATED)
-def crear_solicitud(
-    usuario_id: int = Body(...),
-    tipo: str = Body(...)
-):
+def crear_solicitud(datos: SolicitudCreate = Body(...)):
+    payload = datos.model_dump(exclude_none=True)
+    logger.request_received("POST", "/solicitudes", payload)
+
     try:
-        with engine.begin() as conn:
-            query = """
+        usuario_id = datos.usuario_id
+        correo = datos.correo.strip().lower() if datos.correo else None
+
+        if usuario_id is None and not correo:
+            raise HTTPException(status_code=422, detail="Debe proporcionar 'usuario_id' o 'correo'")
+
+        if usuario_id is not None and correo is not None:
+            lookup_query = text("SELECT id FROM usuario WHERE id = :usuario_id AND LOWER(correo) = :correo")
+            params = {"usuario_id": usuario_id, "correo": correo}
+            logger.db_query(str(lookup_query), params)
+            with engine.connect() as conn:
+                match = conn.execute(lookup_query, params).mappings().first()
+            if not match:
+                raise HTTPException(status_code=400, detail="El usuario_id no coincide con el correo proporcionado")
+
+        if usuario_id is None:
+            lookup_query = text("SELECT id FROM usuario WHERE LOWER(correo) = :correo")
+            params = {"correo": correo}
+            logger.db_query(str(lookup_query), params)
+            with engine.connect() as conn:
+                user = conn.execute(lookup_query, params).mappings().first()
+            if not user:
+                raise HTTPException(status_code=404, detail="No se encontró un usuario con ese correo")
+            usuario_id = user["id"]
+            payload["usuario_id"] = usuario_id
+
+        insert_query = text(
+            """
             INSERT INTO solicitud (usuario_id, tipo, estado, registro_instante)
             VALUES (:usuario_id, :tipo, 'PENDIENTE', NOW())
             """
-            conn.execute(
-                text(query),
-                {"usuario_id": usuario_id, "tipo": tipo}
-            )
-        return {"message": "Reserva creada exitosamente"}
+        )
+        insert_params = {"usuario_id": usuario_id, "tipo": datos.tipo}
+        logger.db_query(str(insert_query), insert_params)
+
+        with engine.begin() as conn:
+            result = conn.execute(insert_query, insert_params)
+            solicitud_id = result.lastrowid
+
+        response_payload = {
+            "message": "Reserva creada exitosamente",
+            "solicitud_id": solicitud_id,
+            "usuario_id": usuario_id,
+        }
+        logger.response_sent(201, "Solicitud creada", f"ID: {solicitud_id}")
+        return response_payload
+    except HTTPException:
+        raise
     except SQLAlchemyError as e:
+        logger.error("SQLAlchemyError", str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 # Registrar préstamo
