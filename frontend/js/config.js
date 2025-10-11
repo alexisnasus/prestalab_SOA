@@ -19,4 +19,6 @@ window.PRESTALAB = {
 
   // Timeout por defecto (seg)
   DEFAULT_TIMEOUT: 30,
+
+  DEBUG_BUS: true
 };

@@ -1,48 +1,119 @@
-// catalog.js — Lista + filtros + Solicitar (servicio: prart -> /items, /solicitudes)
+// catalog.js — Lista + filtros + Solicitar (correo first; si el backend exige usuario_id, lo resolvemos y reintentamos)
 (function () {
   const S = window.PRESTALAB?.SERVICES || {};
-  const results = document.getElementById('results');
-  const state = document.getElementById('state');
-  const form = document.getElementById('filters');
-  const q = document.getElementById('q');
+  const results    = document.getElementById('results');
+  const state      = document.getElementById('state');
+  const form       = document.getElementById('filters');
+  const q          = document.getElementById('q');
   const tipoSelect = document.getElementById('tipo');
-  const btnClear = document.getElementById('btnClear');
+  const btnClear   = document.getElementById('btnClear');
 
+  // ---------- utilitarios UI ----------
   const CLP = (n) => {
     const num = Number(n);
     if (Number.isNaN(num)) return '-';
-    try { return num.toLocaleString('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }); }
+    try { return num.toLocaleString('es-CL', { style:'currency', currency:'CLP', maximumFractionDigits:0 }); }
     catch { return `${num} CLP`; }
   };
 
-  function showState(msg, ok=false) {
-    state.textContent = msg;
-    state.style.display = 'block';
+  function showState(msg, ok=false, extra) {
+    state.innerHTML = '';
+    const line = document.createElement('div');
+    line.textContent = String(msg);
+    state.appendChild(line);
+
+    if (extra !== undefined) {
+      const pre = document.createElement('pre');
+      pre.style.marginTop = '6px';
+      pre.style.whiteSpace = 'pre-wrap';
+      try { pre.textContent = typeof extra === 'string' ? extra : JSON.stringify(extra, null, 2); }
+      catch { pre.textContent = String(extra); }
+      state.appendChild(pre);
+    }
+
+    state.style.display   = 'block';
     state.style.borderColor = ok ? 'rgba(34,197,94,0.35)' : 'rgba(239,68,68,0.35)';
-    state.style.color = ok ? '#22c55e' : '#ef4444';
-    state.style.background = ok ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)';
+    state.style.color       = ok ? '#22c55e' : '#ef4444';
+    state.style.background  = ok ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)';
   }
   function hideState(){ state.style.display = 'none'; }
 
-  async function ensureUserId() {
-    const id = await window.Auth.ensureUserId();
-    if (!id) throw new Error('No pudimos obtener tu ID automáticamente. Abre el Dashboard una vez o define tu ID.');
-    return id;
+  // ---------- helpers: resolución de usuario_id por correo ----------
+  const LS_UID = 'pl_user_id';
+
+  function cacheUserId(id) {
+    if (id && /^\d+$/.test(String(id))) {
+      localStorage.setItem(LS_UID, String(id));
+      return Number(id);
+    }
+    return null;
   }
 
+  async function resolveUserIdFromRegist(correo) {
+    const enc = encodeURIComponent(correo);
+    const attempts = [
+      [`/usuarios?correo=${enc}`, true],
+      [`/usuarios?correo=${enc}`, false],
+      ['/usuarios', true],
+      ['/usuarios', false],
+      ['/usuario', true],
+      ['/usuario', false],
+    ];
+    const pick = (data) => {
+      if (!data) return null;
+      if (Array.isArray(data)) return data.find(x => (x.correo || '').toLowerCase() === correo) || null;
+      if (typeof data === 'object' && data.correo) {
+        return (data.correo || '').toLowerCase() === correo ? data : null;
+      }
+      return null;
+    };
+    for (const [ep, useAuth] of attempts) {
+      try {
+        const data = await API.get(S.AUTH, ep, { auth: !!useAuth });
+        const u = pick(data);
+        if (u?.id) return cacheUserId(u.id);
+      } catch { /* sigue intentando */ }
+    }
+    return null;
+  }
+
+  // ---------- core: crear solicitud ----------
   async function crearSolicitudPrestamo() {
-    const usuario_id = await ensureUserId();
-    const body = { usuario_id, tipo: 'PRÉSTAMO' };
-    // POST /prart/solicitudes (vía Bus /route)
-    return await API.post(S.CATALOG, '/solicitudes', body, { auth: true });
+    const correo = (window.Auth?.getUser?.()?.correo || '').toLowerCase();
+    if (!correo) throw new Error('No hay correo en sesión.');
+
+    // 1) Intento "correo-first"
+    const legacyId = localStorage.getItem(LS_UID);
+    const body = { tipo: 'PRÉSTAMO', correo };
+    if (legacyId && /^\d+$/.test(legacyId)) body.usuario_id = Number(legacyId); // compat si ya lo tenías
+
+    try {
+      return await API.post(S.CATALOG, '/solicitudes', body, { auth: true });
+    } catch (e) {
+      // ¿El backend exige usuario_id?
+      const missingUserId =
+        e?.status === 422 &&
+        (e?.payload?.data?.detail || []).some?.(d =>
+          (Array.isArray(d.loc) ? d.loc.includes('usuario_id') : false)
+        );
+
+      if (!missingUserId) throw e;
+
+      // 2) Resolver id por correo y reintentar
+      const resolved = await resolveUserIdFromRegist(correo);
+      if (!resolved) {
+        const info = { status: e?.status ?? null, raw: e?.payload ?? null };
+        throw Object.assign(new Error('El servicio exige usuario_id y no pudimos resolverlo por correo.'), { status: 422, payload: info });
+      }
+
+      const body2 = { tipo: 'PRÉSTAMO', correo, usuario_id: resolved };
+      return await API.post(S.CATALOG, '/solicitudes', body2, { auth: true });
+    }
   }
 
+  // ---------- render tarjeta ----------
   function card(item) {
-    const {
-      id, nombre, tipo, descripcion, cantidad, cantidad_max,
-      valor, tarifa_atraso
-    } = item;
-
+    const { id, nombre, tipo, descripcion, cantidad, cantidad_max, valor, tarifa_atraso } = item;
     const el = document.createElement('article');
     el.className = 'card item-card';
     el.innerHTML = `
@@ -71,31 +142,40 @@
     results.querySelectorAll('.request-btn').forEach(btn => {
       btn.addEventListener('click', async (ev) => {
         ev.preventDefault();
-        const name = ev.currentTarget.closest('.item-card')?.querySelector('.item-title')?.textContent || 'ítem';
+        hideState();
+
+        const card = ev.currentTarget.closest('.item-card');
+        const name = card?.querySelector('.item-title')?.textContent || 'ítem';
+
         try {
           showState(`Creando solicitud para "${name}"…`, true);
-          await crearSolicitudPrestamo();
-          showState(`Solicitud creada para "${name}". Queda PENDIENTE de gestión.`, true);
+          const res = await crearSolicitudPrestamo();
+          const resumen = res && typeof res === 'object'
+            ? (res.id ? { solicitud_id: res.id, ...res } : res)
+            : { data: res };
+          showState(`Solicitud creada para "${name}". Queda PENDIENTE de gestión.`, true, resumen);
         } catch (e) {
           console.error('[CAT] Solicitar error', e);
           let msg = 'No se pudo crear la solicitud.';
-          if (e.message && e.message.includes('ID')) msg = e.message;
-          else if (e.payload && (e.payload.detail || e.payload.message || e.payload.error)) {
+          if (e?.payload?.detail || e?.payload?.message || e?.payload?.error) {
             msg = e.payload.detail || e.payload.message || e.payload.error;
+          } else if (e?.message) {
+            msg = e.message;
           }
-          showState(msg, false);
+          const extra = { status: e?.status ?? null, raw: e?.payload ?? null };
+          showState(msg, false, extra);
         }
       });
     });
   }
 
+  // ---------- render listado ----------
   function renderList(items) {
     results.innerHTML = '';
     if (!items || !items.length) {
       results.innerHTML = '<p style="opacity:.8">Sin resultados.</p>';
       return;
     }
-    // Poblar combos de tipo (únicos)
     const tipos = Array.from(new Set(items.map(it => it.tipo).filter(Boolean))).sort();
     const current = tipoSelect.value;
     tipoSelect.innerHTML = '<option value="">Todos</option>' + tipos.map(t => `<option value="${t}">${t}</option>`).join('');
@@ -107,14 +187,15 @@
     wireRequestButtons();
   }
 
-  async function fetchItems({ nombre='', tipo='' } = {}) {
+  // ---------- fetch items ----------
+  async function fetchItems({ nombre = '', tipo = '' } = {}) {
     hideState();
     results.innerHTML = '<p style="opacity:.7">Cargando…</p>';
 
     const params = new URLSearchParams();
     if (nombre) params.set('nombre', nombre);
-    if (tipo) params.set('tipo', tipo);
-    const endpoint = '/items' + (params.toString() ? `?${params.toString()}` : '');
+    if (tipo)   params.set('tipo', tipo);
+    const endpoint = '/items' + (params.toString() ? `?${params}` : '');
 
     try {
       const data = await API.get(S.CATALOG, endpoint, { auth: true });
@@ -123,29 +204,29 @@
     } catch (e) {
       console.error('[CAT] Error cargando items', e);
       let msg = 'No se pudo cargar el catálogo.';
-      if (e.payload && (e.payload.detail || e.payload.message || e.payload.error)) {
+      if (e?.payload?.detail || e?.payload?.message || e?.payload?.error) {
         msg = e.payload.detail || e.payload.message || e.payload.error;
       }
       results.innerHTML = '';
-      showState(msg, false);
+      showState(msg, false, e?.payload ?? null);
     }
   }
 
-  // Buscar
+  // ---------- eventos ----------
   form.addEventListener('submit', (ev) => {
     ev.preventDefault();
     const nombre = (q.value || '').trim();
-    const tipo = (tipoSelect.value || '').trim();
+    const tipo   = (tipoSelect.value || '').trim();
     fetchItems({ nombre, tipo });
   });
 
-  // Limpiar
   btnClear.addEventListener('click', () => {
     q.value = '';
     tipoSelect.value = '';
     fetchItems({});
   });
 
-  // Primera carga
+  // ---------- primera carga ----------
+  hideState();
   fetchItems({});
 })();

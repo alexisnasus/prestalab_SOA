@@ -33,34 +33,22 @@
   </main>
 
   <script src="js/config.js"></script>
-  <script src="js/api.js"></script>
-  <script src="js/auth.js"></script>
-<script src="js/config.js"></script>
 <script src="js/api.js"></script>
 <script src="js/auth.js"></script>
+<script src="js/catalog.js"></script>
 <script>
-  (async function () {
-    // Protege la ruta
-    window.Auth.requireAuth();
-
-    // Saludo + badge
-    const u = window.Auth.getUser();
-    const correo = (u?.correo || '').toLowerCase();
+  (function () {
+    Auth.requireAuth();
+    const correo = Auth.getEmail();
     document.getElementById('hello').textContent =
       correo ? `Sesión iniciada: ${correo}` : 'Sesión iniciada';
     document.getElementById('userBadge').textContent = correo || 'Usuario';
 
-    // Resolver y mostrar ID
+    // Si dejaste el <p id="myId"> en el HTML, cámbialo por “identificado por correo”
     const idEl = document.getElementById('myId');
-    try {
-      const id = await window.Auth.ensureUserId();
-      idEl.textContent = id ? `ID de usuario: ${id}` : 'ID de usuario: no encontrado';
-    } catch {
-      idEl.textContent = 'ID de usuario: no encontrado';
-    }
+    if (idEl) idEl.textContent = `Identificador: ${correo || 'no disponible'}`;
 
-    // Logout
-    document.getElementById('btnLogout').addEventListener('click', () => window.Auth.logout());
+    document.getElementById('btnLogout').addEventListener('click', () => Auth.logout());
   })();
 </script>
 
