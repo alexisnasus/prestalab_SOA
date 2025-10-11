@@ -1,62 +1,44 @@
-// login.js – Manejo del formulario de login (compat con backend de demo)
+// login.js
 (function () {
-  const qs = (s) => document.querySelector(s);
-  const form = qs('#loginForm');
-  const email = qs('#email');
-  const password = qs('#password');
-  const btn = qs('#btnLogin');
-  const err = qs('#loginError');
-  const togglePwd = qs('#togglePwd');
+  const form = document.getElementById('loginForm');
+  const email = document.getElementById('email');
+  const password = document.getElementById('password');
+  const btn = document.getElementById('btnLogin');
+  const err = document.getElementById('loginError');
+  const togglePwd = document.getElementById('togglePwd');
 
-  // Si ya hay sesión, ir directo al dashboard
-  if (window.Auth.getToken()) {
-    location.href = "dashboard.html";
-    return;
-  }
+  if (window.Auth.getToken()) { location.href = "dashboard.html"; return; }
 
-  function setLoading(is) {
-    btn.disabled = is;
-    btn.textContent = is ? 'Ingresando…' : 'Ingresar';
-  }
-
-  // Mostrar/ocultar contraseña
   togglePwd?.addEventListener('click', () => {
     password.type = password.type === 'password' ? 'text' : 'password';
     password.focus();
   });
 
+  const setLoading = (is) => { btn.disabled = is; btn.textContent = is ? 'Ingresando…' : 'Ingresar'; };
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    err.style.display = 'none';
-    err.textContent = '';
+    err.style.display = 'none'; err.textContent = '';
 
-    // Normaliza correo: minúsculas + sin espacios
-    const mail = (email.value || '').toLowerCase().replace(/\s+/g, '').trim();
-    const passRaw = (password.value || '').trim();
-
-    if (!mail) {
-      err.textContent = 'Ingresa tu correo institucional.';
-      err.style.display = 'block';
-      return;
-    }
-    if (!passRaw) {
-      err.textContent = 'Ingresa tu contraseña.';
-      err.style.display = 'block';
-      return;
+    const correo = (email.value || '').toLowerCase().trim();
+    const pass   = (password.value || '').trim();
+    if (!correo || !pass) {
+      err.textContent = 'Completa correo y contraseña.'; err.style.display = 'block'; return;
     }
 
+    setLoading(true);
     try {
-      setLoading(true);
-      await window.Auth.login(mail, passRaw);
+      await window.Auth.login(correo, pass);
       location.href = "dashboard.html";
-    } catch (e) {
-      console.error('[LOGIN] Error', e);
+    } catch (ex) {
+      console.error('[LOGIN] Error', ex);
       let msg = 'No se pudo iniciar sesión.';
-      if (e.status === 404) msg = 'Usuario no encontrado.';
-      else if (e.status === 401) msg = 'Credenciales inválidas.';
-      else if (e.payload && (e.payload.message || e.payload.detail)) msg = e.payload.message || e.payload.detail;
-      err.textContent = msg;
-      err.style.display = 'block';
+      if (ex.status === 401) msg = 'Credenciales inválidas.';
+      else if (ex.status === 404) msg = 'Usuario no encontrado.';
+      else if (ex.payload && (ex.payload.detail || ex.payload.message || ex.payload.error)) {
+        msg = ex.payload.detail || ex.payload.message || ex.payload.error;
+      }
+      err.textContent = msg; err.style.display = 'block';
     } finally {
       setLoading(false);
     }

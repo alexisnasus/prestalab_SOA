@@ -1,18 +1,18 @@
-// catalog.js — Lista + filtros + Solicitar (correo first; si el backend exige usuario_id, lo resolvemos y reintentamos)
+// catalog.js — Lista + filtros + Solicitar por CORREO (servicio: prart)
 (function () {
   const S = window.PRESTALAB?.SERVICES || {};
-  const results    = document.getElementById('results');
-  const state      = document.getElementById('state');
-  const form       = document.getElementById('filters');
-  const q          = document.getElementById('q');
-  const tipoSelect = document.getElementById('tipo');
-  const btnClear   = document.getElementById('btnClear');
+  const results   = document.getElementById('results');
+  const state     = document.getElementById('state');
+  const form      = document.getElementById('filters');
+  const q         = document.getElementById('q');
+  const tipoSelect= document.getElementById('tipo');
+  const btnClear  = document.getElementById('btnClear');
 
   // ---------- utilitarios UI ----------
   const CLP = (n) => {
     const num = Number(n);
     if (Number.isNaN(num)) return '-';
-    try { return num.toLocaleString('es-CL', { style:'currency', currency:'CLP', maximumFractionDigits:0 }); }
+    try { return num.toLocaleString('es-CL',{style:'currency',currency:'CLP', maximumFractionDigits:0}); }
     catch { return `${num} CLP`; }
   };
 
@@ -31,92 +31,28 @@
       state.appendChild(pre);
     }
 
-    state.style.display   = 'block';
+    state.style.display = 'block';
     state.style.borderColor = ok ? 'rgba(34,197,94,0.35)' : 'rgba(239,68,68,0.35)';
-    state.style.color       = ok ? '#22c55e' : '#ef4444';
+    state.style.color       = ok ? '#22c55e'            : '#ef4444';
     state.style.background  = ok ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)';
   }
   function hideState(){ state.style.display = 'none'; }
 
-  // ---------- helpers: resolución de usuario_id por correo ----------
-  const LS_UID = 'pl_user_id';
-
-  function cacheUserId(id) {
-    if (id && /^\d+$/.test(String(id))) {
-      localStorage.setItem(LS_UID, String(id));
-      return Number(id);
-    }
-    return null;
-  }
-
-  async function resolveUserIdFromRegist(correo) {
-    const enc = encodeURIComponent(correo);
-    const attempts = [
-      [`/usuarios?correo=${enc}`, true],
-      [`/usuarios?correo=${enc}`, false],
-      ['/usuarios', true],
-      ['/usuarios', false],
-      ['/usuario', true],
-      ['/usuario', false],
-    ];
-    const pick = (data) => {
-      if (!data) return null;
-      if (Array.isArray(data)) return data.find(x => (x.correo || '').toLowerCase() === correo) || null;
-      if (typeof data === 'object' && data.correo) {
-        return (data.correo || '').toLowerCase() === correo ? data : null;
-      }
-      return null;
-    };
-    for (const [ep, useAuth] of attempts) {
-      try {
-        const data = await API.get(S.AUTH, ep, { auth: !!useAuth });
-        const u = pick(data);
-        if (u?.id) return cacheUserId(u.id);
-      } catch { /* sigue intentando */ }
-    }
-    return null;
-  }
-
   // ---------- core: crear solicitud ----------
   async function crearSolicitudPrestamo() {
-    const correo = (window.Auth?.getUser?.()?.correo || '').toLowerCase();
+    const correo = window.Auth?.getEmail?.();
     if (!correo) throw new Error('No hay correo en sesión.');
 
-    // 1) Intento "correo-first"
-    const legacyId = localStorage.getItem(LS_UID);
-    const userId = window.Auth?.getUser?.()?.id;
+    // compat opcional con id legado (si existe en localStorage)
+    const legacyId = localStorage.getItem('pl_user_id');
     const body = { tipo: 'PRÉSTAMO', correo };
-    if (userId && Number.isInteger(Number(userId))) {
-      body.usuario_id = Number(userId);
-    } else if (legacyId && /^\d+$/.test(legacyId)) {
-      body.usuario_id = Number(legacyId); // compat si ya lo tenías
-    }
+    if (legacyId && /^\d+$/.test(legacyId)) body.usuario_id = Number(legacyId);
 
-    try {
-      return await API.post(S.CATALOG, '/solicitudes', body, { auth: true });
-    } catch (e) {
-      // ¿El backend exige usuario_id?
-      const missingUserId =
-        e?.status === 422 &&
-        (e?.payload?.data?.detail || []).some?.(d =>
-          (Array.isArray(d.loc) ? d.loc.includes('usuario_id') : false)
-        );
-
-      if (!missingUserId) throw e;
-
-      // 2) Resolver id por correo y reintentar
-      const resolved = await resolveUserIdFromRegist(correo);
-      if (!resolved) {
-        const info = { status: e?.status ?? null, raw: e?.payload ?? null };
-        throw Object.assign(new Error('El servicio exige usuario_id y no pudimos resolverlo por correo.'), { status: 422, payload: info });
-      }
-
-      const body2 = { tipo: 'PRÉSTAMO', correo, usuario_id: resolved };
-      return await API.post(S.CATALOG, '/solicitudes', body2, { auth: true });
-    }
+    // POST /prart/solicitudes vía Bus
+    return API.post(S.CATALOG, '/solicitudes', body, { auth: true });
   }
 
-  // ---------- render tarjeta ----------
+  // ---------- render de tarjeta ----------
   function card(item) {
     const { id, nombre, tipo, descripcion, cantidad, cantidad_max, valor, tarifa_atraso } = item;
     const el = document.createElement('article');
@@ -143,21 +79,28 @@
     return el;
   }
 
+  // ---------- botones "Solicitar" (con anti doble-clic) ----------
   function wireRequestButtons() {
     results.querySelectorAll('.request-btn').forEach(btn => {
       btn.addEventListener('click', async (ev) => {
         ev.preventDefault();
         hideState();
 
-        const card = ev.currentTarget.closest('.item-card');
+        const b = ev.currentTarget;
+        if (b.disabled) return; // evita doble clic
+        b.disabled = true;      // bloquea mientras se procesa
+
+        const card = b.closest('.item-card');
         const name = card?.querySelector('.item-title')?.textContent || 'ítem';
 
         try {
           showState(`Creando solicitud para "${name}"…`, true);
           const res = await crearSolicitudPrestamo();
+
           const resumen = res && typeof res === 'object'
             ? (res.id ? { solicitud_id: res.id, ...res } : res)
             : { data: res };
+
           showState(`Solicitud creada para "${name}". Queda PENDIENTE de gestión.`, true, resumen);
         } catch (e) {
           console.error('[CAT] Solicitar error', e);
@@ -169,6 +112,8 @@
           }
           const extra = { status: e?.status ?? null, raw: e?.payload ?? null };
           showState(msg, false, extra);
+        } finally {
+          b.disabled = false; // re-habilita siempre
         }
       });
     });
@@ -181,9 +126,12 @@
       results.innerHTML = '<p style="opacity:.8">Sin resultados.</p>';
       return;
     }
+
+    // combo de tipos (conserva selección actual)
     const tipos = Array.from(new Set(items.map(it => it.tipo).filter(Boolean))).sort();
     const current = tipoSelect.value;
-    tipoSelect.innerHTML = '<option value="">Todos</option>' + tipos.map(t => `<option value="${t}">${t}</option>`).join('');
+    tipoSelect.innerHTML = '<option value="">Todos</option>' +
+      tipos.map(t => `<option value="${t}">${t}</option>`).join('');
     tipoSelect.value = current;
 
     const frag = document.createDocumentFragment();
@@ -192,7 +140,7 @@
     wireRequestButtons();
   }
 
-  // ---------- fetch items ----------
+  // ---------- fetch de items ----------
   async function fetchItems({ nombre = '', tipo = '' } = {}) {
     hideState();
     results.innerHTML = '<p style="opacity:.7">Cargando…</p>';
@@ -200,6 +148,7 @@
     const params = new URLSearchParams();
     if (nombre) params.set('nombre', nombre);
     if (tipo)   params.set('tipo', tipo);
+
     const endpoint = '/items' + (params.toString() ? `?${params}` : '');
 
     try {
@@ -217,7 +166,7 @@
     }
   }
 
-  // ---------- eventos ----------
+  // ---------- eventos de filtros ----------
   form.addEventListener('submit', (ev) => {
     ev.preventDefault();
     const nombre = (q.value || '').trim();
