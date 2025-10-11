@@ -280,6 +280,7 @@ docker-compose logs -f
 |--------|----------|-------------|
 | GET | `/` | Health check del servicio |
 | GET | `/items?nombre=&tipo=` | Buscar artículos del catálogo |
+| GET | `/solicitudes?usuario_id=&correo=` | Listar solicitudes de un usuario |
 | POST | `/solicitudes` | Crear solicitud de préstamo |
 | POST | `/reservas` | Crear reserva de artículo |
 | DELETE | `/reservas/{id}` | Cancelar reserva |

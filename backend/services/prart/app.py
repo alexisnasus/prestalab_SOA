@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException, Query, Path, Body, status
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, bindparam
 from sqlalchemy.exc import SQLAlchemyError
 import os
 from datetime import datetime, timedelta
@@ -117,6 +117,117 @@ class SolicitudCreate(BaseModel):
     usuario_id: Optional[int] = Field(default=None, description="ID del usuario solicitante")
     correo: Optional[str] = Field(default=None, description="Correo del usuario solicitante")
     tipo: str = Field(..., min_length=1, description="Tipo de solicitud")
+
+
+# Obtener solicitudes de un usuario
+@app.get("/solicitudes", status_code=status.HTTP_200_OK)
+def obtener_solicitudes_usuario(
+    usuario_id: Optional[int] = Query(None, ge=1),
+    correo: Optional[str] = Query(None)
+):
+    filtros = {"usuario_id": usuario_id, "correo": correo}
+    logger.request_received("GET", "/solicitudes", filtros)
+
+    correo_norm = correo.strip().lower() if correo else None
+
+    if usuario_id is None and correo_norm is None:
+        logger.response_sent(422, "Debe proporcionar 'usuario_id' o 'correo'")
+        raise HTTPException(status_code=422, detail="Debe proporcionar 'usuario_id' o 'correo'")
+
+    try:
+        with engine.connect() as conn:
+            # Resolver usuario
+            resolved_user_id: Optional[int] = None
+            if usuario_id is not None and correo_norm is not None:
+                lookup = text("SELECT id FROM usuario WHERE id = :usuario_id AND LOWER(correo) = :correo")
+                params = {"usuario_id": usuario_id, "correo": correo_norm}
+                logger.db_query(str(lookup), params)
+                match = conn.execute(lookup, params).mappings().first()
+                if not match:
+                    logger.response_sent(400, "usuario_id no coincide con el correo proporcionado")
+                    raise HTTPException(status_code=400, detail="El usuario_id no coincide con el correo proporcionado")
+                resolved_user_id = usuario_id
+            elif usuario_id is not None:
+                lookup = text("SELECT id FROM usuario WHERE id = :usuario_id")
+                params = {"usuario_id": usuario_id}
+                logger.db_query(str(lookup), params)
+                match = conn.execute(lookup, params).mappings().first()
+                if not match:
+                    logger.response_sent(404, f"Usuario {usuario_id} no encontrado")
+                    raise HTTPException(status_code=404, detail="Usuario no encontrado")
+                resolved_user_id = usuario_id
+            else:
+                lookup = text("SELECT id FROM usuario WHERE LOWER(correo) = :correo")
+                params = {"correo": correo_norm}
+                logger.db_query(str(lookup), params)
+                match = conn.execute(lookup, params).mappings().first()
+                if not match:
+                    logger.response_sent(404, f"Usuario con correo {correo_norm} no encontrado")
+                    raise HTTPException(status_code=404, detail="No se encontró un usuario con ese correo")
+                resolved_user_id = match["id"]
+
+            solicitudes_query = text(
+                """
+                SELECT s.id, s.usuario_id, s.tipo, s.estado, s.registro_instante
+                FROM solicitud s
+                WHERE s.usuario_id = :usuario_id
+                ORDER BY s.registro_instante DESC
+                """
+            )
+            logger.db_query(str(solicitudes_query), {"usuario_id": resolved_user_id})
+            solicitudes_rows = conn.execute(solicitudes_query, {"usuario_id": resolved_user_id}).mappings().all()
+
+            solicitudes = []
+            solicitud_ids = []
+            for row in solicitudes_rows:
+                solicitud = dict(row)
+                registro = solicitud.get("registro_instante")
+                if isinstance(registro, datetime):
+                    solicitud["registro_instante"] = registro.isoformat()
+                solicitud["items"] = []
+                solicitudes.append(solicitud)
+                solicitud_ids.append(solicitud["id"])
+
+            if solicitud_ids:
+                items_query = text(
+                    """
+                    SELECT isolicitud.solicitud_id, isolicitud.item_id, isolicitud.cantidad,
+                           i.nombre, i.tipo
+                    FROM item_solicitud AS isolicitud
+                    JOIN item i ON i.id = isolicitud.item_id
+                    WHERE isolicitud.solicitud_id IN :solicitudes
+                    ORDER BY i.nombre ASC
+                    """
+                ).bindparams(bindparam("solicitudes", expanding=True))
+
+                logger.db_query(str(items_query), {"solicitudes": solicitud_ids})
+                items_rows = conn.execute(items_query, {"solicitudes": solicitud_ids}).mappings().all()
+
+                items_por_solicitud = {}
+                for item in items_rows:
+                    items_por_solicitud.setdefault(item["solicitud_id"], []).append({
+                        "item_id": item["item_id"],
+                        "nombre": item["nombre"],
+                        "tipo": item["tipo"],
+                        "cantidad": item["cantidad"]
+                    })
+
+                for solicitud in solicitudes:
+                    solicitud["items"] = items_por_solicitud.get(solicitud["id"], [])
+
+        respuesta = {
+            "usuario_id": resolved_user_id,
+            "total": len(solicitudes),
+            "solicitudes": solicitudes
+        }
+        logger.response_sent(200, "Solicitudes obtenidas", f"Total: {len(solicitudes)}")
+        return respuesta
+
+    except HTTPException:
+        raise
+    except SQLAlchemyError as e:
+        logger.error("SQLAlchemyError", str(e))
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # Registrar solicitud
