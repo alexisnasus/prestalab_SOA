@@ -22,3 +22,7 @@ window.PRESTALAB = {
 
   DEBUG_BUS: true
 };
+
+window.PRESTALAB.FEATURES = Object.assign(window.PRESTALAB.FEATURES||{}, {
+  MY_LOANS: true
+});

@@ -203,3 +203,44 @@ code {
   margin: 2px 0;
   opacity: .9;
 }
+
+.sol-actions {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+}
+
+.sol-actions button {
+  background: rgba(59,130,246,.15);
+  color: #60a5fa;
+  border: 1px solid rgba(59,130,246,.4);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all .2s;
+}
+
+.sol-actions button:hover {
+  background: rgba(59,130,246,.3);
+}
+
+.btn-cancelar {
+  background: rgba(239,68,68,.15);
+  color: #ef4444;
+  border-color: rgba(239,68,68,.4);
+}
+
+.btn-cancelar:hover {
+  background: rgba(239,68,68,.3);
+}
+
+.btn-devolver {
+  background: rgba(34,197,94,.15);
+  color: #22c55e;
+  border-color: rgba(34,197,94,.4);
+}
+
+.btn-devolver:hover {
+  background: rgba(34,197,94,.3);
+}

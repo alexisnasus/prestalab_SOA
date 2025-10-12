@@ -13,6 +13,7 @@
       <a href="dashboard.html" class="nav-link">Inicio</a>
       <a href="catalog.html" class="nav-link">Catálogo</a>
       <a href="mis-solicitudes.html" class="nav-link active">Mis solicitudes</a>
+      <a href="mis-prestamos.html" class="nav-link">Mis préstamos</a>
     </div>
     <div class="nav-right">
       <span id="userBadge" class="badge">Cargando…</span>
@@ -23,6 +24,26 @@
     <main class="container">
     <section class="card">
         <h1>Mis solicitudes</h1>
+        <div class="toolbar" style="display:flex; gap:8px; align-items:center; margin:8px 0 12px 0;">
+  <label style="opacity:.8">Estado</label>
+  <select id="fEstado">
+    <option value="">Todos</option>
+    <option>PENDIENTE</option>
+    <option>APROBADA</option>
+    <option>RECHAZADA</option>
+    <option>ANULADA</option>
+  </select>
+
+  <label style="opacity:.8; margin-left:12px;">Tipo</label>
+  <select id="fTipo">
+    <option value="">Todos</option>
+    <option>PRÉSTAMO</option>
+    <option>VENTANA</option>
+  </select>
+
+  <button id="btnRef" class="btn" style="margin-left:auto;">Actualizar</button>
+</div>
+
         <p id="state" style="display:none"></p>
         <div id="solWrap"></div>
     </section>
