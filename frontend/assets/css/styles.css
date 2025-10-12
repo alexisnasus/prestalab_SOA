@@ -136,20 +136,70 @@ code {
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 14px;
 }
+/* ---- Mis solicitudes ---- */
+#solWrap { margin-top: 12px; }
 
-/* Tarjeta de item */
-.item-card { display: grid; gap: 10px; }
-.item-title { margin: 0; font-size: 18px; }
-.item-desc { color: var(--muted); margin: 0; min-height: 38px; }
-.item-meta { display: flex; flex-wrap: wrap; gap: 6px; }
-.pill {
-  font-size: 12px; padding: 4px 8px; border-radius: 999px;
-  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
+.sol-grid{
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
 }
-.item-prices {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
-  align-items: end;
+
+.sol-card{
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 6px 18px rgba(0,0,0,.15);
+  color: #e5e7eb;  /* texto claro para fondo oscuro */
 }
-.item-prices small { color: var(--muted); display:block; margin-bottom: 2px; }
-.price { font-weight: 700; letter-spacing: .2px; }
-.disabled { opacity: .6; cursor: not-allowed; }
+
+.sol-top{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.sol-id{
+  font-weight: 600;
+  opacity: .9;
+}
+
+.sol-badge{
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(148,163,184,.15);
+  border: 1px solid rgba(148,163,184,.25);
+  color: #cbd5e1;
+}
+
+/* Colores por estado (ajusta si tus estados son otros) */
+.sol-badge.pendiente{
+  color: #f59e0b;
+  background: rgba(245,158,11,.12);
+  border-color: rgba(245,158,11,.35);
+}
+.sol-badge.aprobada{
+  color: #22c55e;
+  background: rgba(34,197,94,.12);
+  border-color: rgba(34,197,94,.35);
+}
+.sol-badge.rechazada{
+  color: #ef4444;
+  background: rgba(239,68,68,.12);
+  border-color: rgba(239,68,68,.35);
+}
+
+.sol-title{
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.sol-item, .sol-date{
+  margin: 2px 0;
+  opacity: .9;
+}
