@@ -206,3 +206,46 @@ def actualizar_usuario(id: int, datos: dict = Body(...)):
         conn.execute(query, datos)
         logger.response_sent(200, f"Usuario {id} actualizado")
         return {"message": f"Usuario {id} actualizado"}
+
+
+class SolicitudActualizacion(BaseModel):
+    estado: str = Field(..., pattern="^(APROBADA|RECHAZADA)$")
+
+
+# Aprobar o rechazar solicitud
+@app.put("/solicitudes/{solicitud_id}/actualizar")
+def actualizar_solicitud(solicitud_id: int, actualizacion: SolicitudActualizacion = Body(...)):
+    logger.request_received("PUT", f"/solicitudes/{solicitud_id}/actualizar", actualizacion.dict())
+    
+    # Primero verificar que la solicitud existe y está en estado PENDIENTE
+    check_query = text("SELECT id, estado FROM solicitud WHERE id = :id")
+    logger.db_query(str(check_query), {"id": solicitud_id})
+    
+    with engine.begin() as conn:
+        solicitud = conn.execute(check_query, {"id": solicitud_id}).mappings().first()
+        
+        if not solicitud:
+            logger.response_sent(404, "Solicitud no encontrada")
+            raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+        
+        if solicitud["estado"] != "PENDIENTE":
+            logger.response_sent(400, f"Solicitud no está en estado PENDIENTE, estado actual: {solicitud['estado']}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"La solicitud no está en estado PENDIENTE. Estado actual: {solicitud['estado']}"
+            )
+        
+        # Actualizar el estado de la solicitud
+        update_query = text("UPDATE solicitud SET estado = :estado WHERE id = :id")
+        logger.db_query(str(update_query), {"estado": actualizacion.estado, "id": solicitud_id})
+        
+        conn.execute(update_query, {"estado": actualizacion.estado, "id": solicitud_id})
+        
+        response_data = {
+            "message": f"Solicitud {solicitud_id} {actualizacion.estado.lower()}",
+            "solicitud_id": solicitud_id,
+            "nuevo_estado": actualizacion.estado
+        }
+        
+        logger.response_sent(200, f"Solicitud {solicitud_id} actualizada a {actualizacion.estado}")
+        return response_data
