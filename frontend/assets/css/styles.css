@@ -244,3 +244,36 @@ code {
 .btn-devolver:hover {
   background: rgba(34,197,94,.3);
 }
+
+.sol-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.btn-small {
+  padding: 6px 10px;
+  font-size: 0.9rem;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-success {
+  background: #14532d;
+  color: #fff;
+}
+
+.btn-danger {
+  background: #7f1d1d;
+  color: #fff;
+}
+
+.btn-success:hover {
+  background: #166534;
+}
+
+.btn-danger:hover {
+  background: #991b1b;
+}
