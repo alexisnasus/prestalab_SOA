@@ -1,4 +1,4 @@
-// listas-espera.js — Catálogo completo + filtro local + "Unirme a la lista"
+// listas-espera.js — Catálogo completo + filtro + contador + presencia robusta + salir
 (function () {
   const S        = window.PRESTALAB?.SERVICES || {};
   const LIST     = S.WAITLIST || S.lista;   // servicio lista de espera
@@ -9,12 +9,29 @@
   const elList    = document.getElementById("catalogList");
   const elSearch  = document.getElementById("waitSearch");
   const btnRef    = document.getElementById("btnWaitRefresh");
-  const btnAll    = document.getElementById("btnVerTodo"); // opcional si lo tienes
+  const btnAll    = document.getElementById("btnVerTodo"); // opcional
 
   // Estado local
   let ALL_ITEMS = [];
   let PAGE_SIZE = 24;
   let page = 1;
+
+  // -------- storage: recordamos solicitud_id por item ----------
+  const userEmail = () => (window.Auth?.getEmail?.() || "").toLowerCase();
+  const userId    = () => window.Auth?.getUserId?.() || localStorage.getItem('pl_user_id') || null;
+  const LS_KEY    = () => `pl_wait_solicitudes:${userEmail()}`;
+
+  function getWaitMap() {
+    try { return JSON.parse(localStorage.getItem(LS_KEY()) || "{}"); }
+    catch { return {}; }
+  }
+  function setWaitMap(map) { localStorage.setItem(LS_KEY(), JSON.stringify(map || {})); }
+  function rememberJoin(item_id, solicitud_id) {
+    const map = getWaitMap(); map[item_id] = solicitud_id; setWaitMap(map);
+  }
+  function forgetJoin(item_id) {
+    const map = getWaitMap(); delete map[item_id]; setWaitMap(map);
+  }
 
   // ---------- Helpers UI ----------
   const show = (msg, ok=false) => {
@@ -52,20 +69,15 @@
     })).filter(x => x.id);
   }
 
-  // ---------- API: traerse TODO el catálogo (best-effort) ----------
+  // ---------- API: traerse TODO el catálogo ----------
   async function fetchAllCatalog() {
-    // 1) intento: gran límite
-    const tryPaths = [
-      '/items?limit=1000',
-      '/items?limit=500',
-      '/items'
-    ];
+    const tryPaths = ['/items?limit=1000','/items?limit=500','/items'];
     for (const path of tryPaths) {
       try {
         const res  = await API.get(CATALOG, path, { auth: true });
         let list   = normalizeCatalog(res);
 
-        // 2) si el backend expone paginación, intenta seguirla
+        // paginación si existe
         let next = res?.next || res?.next_page || res?.links?.next;
         let offset = res?.next_offset || null;
         let guard = 0;
@@ -80,9 +92,8 @@
             offset = more?.next_offset || null;
           } catch { break; }
         }
-
         if (list.length) return uniqueBy(list, x => x.id);
-      } catch (_) { /* probar el siguiente */ }
+      } catch (_) {}
     }
     return [];
   }
@@ -93,13 +104,13 @@
     return out;
   }
 
-  // ---------- Crear solicitud + unirse a lista ----------
+  // ---------- Crear solicitud + unirse ----------
   async function crearSolicitud(tipo = 'VENTANA') {
-    const correo = window.Auth?.getEmail?.();
+    const correo = userEmail();
     if (!correo) throw new Error('No hay sesión activa.');
-    const legacyId = window.Auth?.getUserId?.() || localStorage.getItem('pl_user_id');
+    const uid = userId();
     const body = { tipo, correo };
-    if (legacyId && /^\d+$/.test(String(legacyId))) body.usuario_id = Number(legacyId);
+    if (uid && /^\d+$/.test(String(uid))) body.usuario_id = Number(uid);
 
     const res = await API.post(CATALOG, '/solicitudes', body, { auth: true });
     const solicitud_id = res?.solicitud_id ?? res?.id ?? res?.data?.solicitud_id;
@@ -107,12 +118,80 @@
     return solicitud_id;
   }
 
+  // ---------- Detección robusta de presencia en cola ----------
+  function arrayFirst(arrLike) {
+    if (Array.isArray(arrLike)) return arrLike;
+    if (arrLike && typeof arrLike === 'object') {
+      for (const k of ['registros','lista','data','items']) {
+        if (Array.isArray(arrLike[k])) return arrLike[k];
+      }
+    }
+    return [];
+  }
+
+  function extractUserFields(r) {
+    const lower = (s) => (s || '').toString().toLowerCase();
+    return {
+      regId: r?.id ?? r?.registro_id ?? r?.lista_id ?? null,
+      solicitudId: r?.solicitud_id ?? r?.solicitud?.id ?? r?.solicitudId ?? null,
+      usuarioId: r?.usuario_id ?? r?.usuario?.id ?? r?.solicitud?.usuario_id ?? null,
+      correo: lower(r?.correo || r?.email || r?.usuario?.correo || r?.solicitud?.correo || r?.solicitud?.email)
+    };
+  }
+
+  function isMe(rFields, rememberedSolicitudId) {
+    const myEmail = userEmail();
+    const myUid   = userId();
+    if (rememberedSolicitudId && String(rFields.solicitudId) === String(rememberedSolicitudId)) return true;
+    if (myUid && rFields.usuarioId && String(rFields.usuarioId) === String(myUid)) return true;
+    if (myEmail && rFields.correo && rFields.correo === myEmail) return true;
+    return false;
+  }
+
+  async function getQueueInfo(item_id) {
+    const map = getWaitMap();
+    const remembered = map[String(item_id)] || null;
+
+    try {
+      const det = await API.get(LIST, `/lista-espera/${item_id}`, { auth: true });
+      const registros = arrayFirst(det);
+      const count = registros.length;
+
+      let myPos = null, myRegId = null, mySolicitudId = null;
+      for (let i = 0; i < registros.length; i++) {
+        const rf = extractUserFields(registros[i]);
+        if (isMe(rf, remembered)) {
+          myPos = i + 1;
+          myRegId = rf.regId || null;
+          mySolicitudId = rf.solicitudId || remembered || null;
+          break;
+        }
+      }
+
+      // si detectamos presencia pero no estaba recordada, sincroniza
+      if (!remembered && mySolicitudId) rememberJoin(String(item_id), String(mySolicitudId));
+      // si estaba recordado pero ya no aparece en la cola, limpia
+      if (remembered && myPos === null) forgetJoin(String(item_id));
+
+      return { count, myPos, myRegId };
+    } catch {
+      return { count: null, myPos: null, myRegId: null };
+    }
+  }
+
+  // ---------- Unirse / Salir ----------
   async function unirmeALista(item_id, cardEl) {
     clearMsg();
-    if (!item_id || !/^\d+$/.test(String(item_id))) {
-      show("Ítem inválido (falta id).", false);
+    if (!item_id || !/^\d+$/.test(String(item_id))) { show("Ítem inválido (falta id).", false); return; }
+
+    // PRE-CHEQUEO: si ya estás en la cola, no creamos nada y solo mostramos estado
+    const pre = await getQueueInfo(item_id);
+    if (pre.myRegId) {
+      await enrichCardQueue(cardEl, item_id);
+      show(pre.myPos ? `Ya estás en esta lista (posición #${pre.myPos}).` : `Ya estás en esta lista.`, true);
       return;
     }
+
     try {
       cardEl?.querySelector('button[data-join]')?.setAttribute('disabled', 'disabled');
       const solicitud_id = await crearSolicitud('VENTANA');
@@ -123,24 +202,32 @@
         estado: 'EN ESPERA'
       }, { auth: true });
 
-      // posición (best-effort)
-      let pos = null;
-      try {
-        const det = await API.get(LIST, `/lista-espera/${item_id}`, { auth: true });
-        const registros = det?.registros || [];
-        const idx = registros.findIndex(r => Number(r.solicitud_id) === Number(solicitud_id));
-        if (idx >= 0) pos = idx + 1;
-      } catch {}
+      rememberJoin(String(item_id), String(solicitud_id));
 
-      show(pos ? `Listo: te sumaste (posición #${pos}).` : `Listo: te sumaste a la lista.`, true);
+      // refrescar contador/estado de la card
+      await enrichCardQueue(cardEl, item_id);
+      show(`Listo: te sumaste a la lista.`, true);
     } catch (e) {
-      let msg = 'No se pudo sumar a la lista.';
-      if (e?.payload?.detail || e?.payload?.message || e?.payload?.error) {
-        msg = e.payload.detail || e.payload.message || e.payload.error;
-      } else if (e?.message) msg = e.message;
+      let msg = e?.payload?.detail || e?.payload?.message || e?.payload?.error || e?.message || 'No se pudo sumar a la lista.';
       show(msg, false);
     } finally {
       cardEl?.querySelector('button[data-join]')?.removeAttribute('disabled');
+    }
+  }
+
+  async function salirDeLista(registro_id, item_id, cardEl) {
+    clearMsg();
+    try {
+      cardEl?.querySelector('[data-leave]')?.setAttribute('disabled', 'disabled');
+      await API.delete(LIST, `/lista-espera/${registro_id}`, { auth: true });
+      forgetJoin(String(item_id));
+      await enrichCardQueue(cardEl, item_id);
+      show('Saliste de la lista de espera.', true);
+    } catch (e) {
+      let msg = e?.payload?.detail || e?.payload?.message || e?.payload?.error || e?.message || 'No se pudo salir de la lista.';
+      show(msg, false);
+    } finally {
+      cardEl?.querySelector('[data-leave]')?.removeAttribute('disabled');
     }
   }
 
@@ -156,10 +243,8 @@
         ))
       : ALL_ITEMS.slice();
 
-    // paginado front
-    const start = 0;
     const end   = PAGE_SIZE * page;
-    const view  = filtered.slice(start, end);
+    const view  = filtered.slice(0, end);
 
     elList.innerHTML = "";
     if (!view.length) {
@@ -171,6 +256,7 @@
     view.forEach(it => {
       const card = document.createElement('article');
       card.className = 'sol-card';
+      card.setAttribute('data-item', it.id);
       const meta = [it.marca, it.modelo].filter(Boolean).join(" · ");
       const badge = it.categoria ? `<span class="sol-badge">${escapeHtml(it.categoria)}</span>` : '';
 
@@ -181,16 +267,22 @@
         </div>
         <h3 class="sol-title">${escapeHtml(it.nombre)}</h3>
         <p class="sol-item"><strong>Marca/Modelo:</strong> ${escapeHtml(meta || '—')}</p>
-        <div class="sol-actions">
+
+        <div class="queue-line" style="display:flex;align-items:center;gap:.5rem;margin:.35rem 0 .5rem 0">
+          <span class="queue-pill" data-qcount style="font-size:.85rem;opacity:.85;">En cola: —</span>
+          <span class="queue-you" data-qyou style="font-size:.85rem;color:#a5b4fc;"></span>
+        </div>
+
+        <div class="sol-actions" style="display:flex;gap:.5rem;justify-content:flex-end;">
           <button class="btn btn-small" data-join="${it.id}">Unirme a la lista</button>
+          <button class="btn btn-small btn-danger" data-leave style="display:none">Salir de la lista</button>
         </div>
       `;
       frag.appendChild(card);
     });
-
     elList.appendChild(frag);
 
-    // botón "Cargar más"
+    // “Cargar más”
     const moreNeeded = end < filtered.length;
     let moreBtn = document.getElementById('btnLoadMore');
     if (moreNeeded) {
@@ -208,9 +300,50 @@
       moreBtn.style.display = 'none';
     }
 
-    // estado
     const showing = Math.min(end, filtered.length);
     show(`Mostrando ${showing} de ${filtered.length} equipos · Catálogo total: ${ALL_ITEMS.length}`, true);
+
+    hydrateVisibleQueues();
+  }
+
+  // Concurrencia limitada para llamadas /lista-espera/{item}
+  async function hydrateVisibleQueues(concurrency = 6) {
+    const cards = Array.from(elList.querySelectorAll('.sol-card'));
+    let i = 0;
+    async function worker() {
+      while (i < cards.length) {
+        const card = cards[i++];
+        const itemId = card.getAttribute('data-item');
+        await enrichCardQueue(card, itemId);
+      }
+    }
+    const workers = Array.from({ length: Math.min(concurrency, cards.length) }, worker);
+    await Promise.all(workers);
+  }
+
+  async function enrichCardQueue(cardEl, item_id) {
+    const qCountEl = cardEl.querySelector('[data-qcount]');
+    const qYouEl   = cardEl.querySelector('[data-qyou]');
+    const joinBtn  = cardEl.querySelector('[data-join]');
+    const leaveBtn = cardEl.querySelector('[data-leave]');
+
+    const { count, myPos, myRegId } = await getQueueInfo(item_id);
+
+    qCountEl.textContent = `En cola: ${count === null ? '—' : count}`;
+
+    if (myRegId) {
+      qYouEl.textContent = myPos ? `· Tu posición: #${myPos}` : '· Ya estás en la lista';
+      leaveBtn.style.display = 'inline-block';
+      leaveBtn.setAttribute('data-leave', myRegId);
+      leaveBtn.setAttribute('data-item', item_id);
+      joinBtn.style.display = 'none';
+    } else {
+      qYouEl.textContent = '';
+      leaveBtn.style.display = 'none';
+      leaveBtn.removeAttribute('data-leave');
+      leaveBtn.removeAttribute('data-item');
+      joinBtn.style.display = 'inline-block';
+    }
   }
 
   // ---------- Flujo inicial ----------
@@ -234,15 +367,27 @@
   btnRef?.addEventListener('click', (e) => { e.preventDefault(); boot(); });
   btnAll?.addEventListener('click', (e) => { e.preventDefault(); elSearch.value=""; page=1; render(); });
 
-  // delegación: botón "Unirme a la lista"
-  elList.addEventListener('click', (ev) => {
-    const btn = ev.target.closest('[data-join]');
-    if (!btn) return;
-    ev.preventDefault();
-    const item_id = btn.getAttribute('data-join');
-    const card = btn.closest('.sol-card');
-    if (confirm('¿Quieres unirte a la lista de espera de este ítem?')) {
-      unirmeALista(item_id, card);
+  // delegación: unirse / salir
+  elList.addEventListener('click', async (ev) => {
+    const join = ev.target.closest('[data-join]');
+    if (join) {
+      ev.preventDefault();
+      const item_id = join.getAttribute('data-join');
+      const card = join.closest('.sol-card');
+      if (confirm('¿Quieres unirte a la lista de espera de este ítem?')) {
+        await unirmeALista(item_id, card);
+      }
+      return;
+    }
+    const leave = ev.target.closest('[data-leave]');
+    if (leave && leave.getAttribute('data-leave')) {
+      ev.preventDefault();
+      const regId  = leave.getAttribute('data-leave');
+      const itemId = leave.getAttribute('data-item');
+      const card = leave.closest('.sol-card');
+      if (confirm('¿Seguro que quieres salir de la lista?')) {
+        await salirDeLista(regId, itemId, card);
+      }
     }
   });
 
