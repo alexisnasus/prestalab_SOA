@@ -20,14 +20,14 @@
     '/ideas?limit=1000'
   ];
 
-  // util: arma URL del bus
+  // arma URL del bus
   function busJoin(service, path) {
     const base = (window.PRESTALAB.BUS_BASE_URL || '') + (window.PRESTALAB.ROUTE_PATH || '');
     const svc  = service.replace(/^\//,'');
     const pth  = path.startsWith('/') ? path : `/${path}`;
     return `${base}/${svc}${pth}`;
   }
-  // util: fetch crudo (usa API.fetchRaw si existe; si no, fetch nativo)
+  // fetch crudo (usa API.fetchRaw si existe; si no, fetch nativo)
   async function busFetchRaw(service, path, init) {
     if (API.fetchRaw) return API.fetchRaw(service, path, init);
     const url = busJoin(service, path);

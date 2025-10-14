@@ -6,7 +6,7 @@
 
   const wrap  = document.getElementById('multasWrap'); // contenedor de tarjetas/listado
   const state = document.getElementById('state');      // banner de estado
-  const btn   = document.getElementById('btnReload');  // botón "Actualizar" (opcional)
+  const btn   = document.getElementById('btnReload');  // botón "Actualizar" 
 
   // ---------- UI ----------
   function banner(msg, ok=false, extra=null) {
@@ -36,7 +36,7 @@
 
   // ---------- helpers ----------
   async function resolveUserId() {
-    // 1) intenta desde localStorage (debería estar si arreglaste auth.js)
+    // 1) intenta desde localStorage 
     const raw = localStorage.getItem('pl_user_id');
     if (raw && /^\d+$/.test(raw)) return Number(raw);
 
@@ -60,9 +60,7 @@
 
   function normalizeMultas(resp) {
     // posibles formatos:
-    // { usuario_id, multas:[...] }
-    // { data: { usuario_id, multas:[...] } }
-    // [ ... ]
+  
     const body = (resp && typeof resp === 'object' && 'data' in resp) ? resp.data : resp;
     if (Array.isArray(body)) return body;
     if (Array.isArray(body?.multas)) return body.multas;
@@ -81,7 +79,7 @@
     }
 
     const grid = document.createElement('div');
-    grid.className = 'sol-grid'; // reutilizamos estilos de tarjetas
+    grid.className = 'sol-grid'; // estilos de tarjetas
 
     items.forEach((m) => {
       const card = document.createElement('article');

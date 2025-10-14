@@ -118,7 +118,7 @@
     return solicitud_id;
   }
 
-  // ---------- Detección robusta de presencia en cola ----------
+  // ---------- Detección de presencia en cola ----------
   function arrayFirst(arrLike) {
     if (Array.isArray(arrLike)) return arrLike;
     if (arrLike && typeof arrLike === 'object') {
@@ -184,7 +184,7 @@
     clearMsg();
     if (!item_id || !/^\d+$/.test(String(item_id))) { show("Ítem inválido (falta id).", false); return; }
 
-    // PRE-CHEQUEO: si ya estás en la cola, no creamos nada y solo mostramos estado
+    // PRE-CHEQUEO: si ya estás en la cola, solo muestra estado
     const pre = await getQueueInfo(item_id);
     if (pre.myRegId) {
       await enrichCardQueue(cardEl, item_id);

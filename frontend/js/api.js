@@ -10,7 +10,7 @@ async function busFetch(service, path, opts = {}) {
   if (!service) throw new Error("api.busFetch: falta 'service'");
   const method = (opts.method || "GET").toUpperCase();
 
-  // 👇 Log opcional (solo si activas DEBUG_BUS en config.js)
+  //  Log opcional 
   if (window.PRESTALAB?.DEBUG_BUS) {
     console.debug('[BUS→] /route', {
       target_service: service,

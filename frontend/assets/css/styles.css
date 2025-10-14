@@ -303,7 +303,7 @@ code {
 }
 .ac-option[aria-selected="true"], .ac-option:hover{ background: rgba(99,102,241,.15); }
 
-/* Cards del catálogo (si no existen) */
+/* Cards del catálogo */
 .sol-card{ background:#0d1420; border:1px solid rgba(255,255,255,.06); border-radius: .75rem; padding: 1rem; }
 .sol-top{ display:flex; justify-content:space-between; gap:.5rem; margin-bottom:.25rem; opacity:.8 }
 .sol-title{ margin:.25rem 0 .5rem 0; font-size:1.05rem; }
@@ -436,5 +436,5 @@ button.tab, .tab {
   outline-offset: 2px;
 }
 
-/* Por si tienes un estilo global que fuerza color oscuro en button dentro de .tabs */
+/* fuerza color oscuro en button dentro de .tabs */
 .tabs button { color: inherit !important; }

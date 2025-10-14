@@ -51,13 +51,13 @@
     const S = window.PRESTALAB?.SERVICES || {};
     const payload = { correo, password };
 
-    // Ajusta el endpoint si tu backend usa otro path
+    // Ajusta el endpoint 
     const res = await window.API.post(S.AUTH, "/auth/login", payload, { auth: false });
 
-    // Esperamos { token, usuario?: {...} }
+    // Espera { token, usuario?: {...} }
     if (!res || !res.token) throw new Error("Respuesta de login inválida");
 
-    // Si el backend devuelve datos del usuario, guárdalos; si no, crea un objeto mínimo
+    // Si el backend devuelve datos del usuario,se guardan; si no, crea un objeto mínimo
     const user = res.usuario || { correo };
     saveSession(res.token, user);
 

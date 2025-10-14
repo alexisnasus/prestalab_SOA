@@ -9,13 +9,12 @@ window.PRESTALAB = {
   // Servicios (nombres lógicos registrados en el Bus)
   SERVICES: {
     REPORTS: "gerep",
-    WAITLIST: "lista",     // ← lista de espera
+    WAITLIST: "lista",     
     FINES: "multa",
     NOTIFICATIONS: "notis",
-    CATALOG: "prart",      // ← catálogo / existencias
+    CATALOG: "prart",      
     AUTH: "regist",
-    SUGGESTIONS: "sugit",  // ← como lo tienes en el Bus
-    // Alias opcional para que el front lo encuentre sin tocar JS:
+    SUGGESTIONS: "sugit",  
     SUGGEST: "sugit"
   },
 
