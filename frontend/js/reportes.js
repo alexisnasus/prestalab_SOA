@@ -232,5 +232,13 @@
       const email = window.Auth?.getEmail?.();
       if (email) document.getElementById('userBadge').textContent = email;
     } catch {}
+
+    
+  // ---------- init ----------
+  window.Auth?.requireAuth?.();
+  const user = window.Auth?.getUser?.();
+  document.getElementById("userBadge").textContent = user?.correo || "Usuario";
+  document.getElementById("btnLogout").addEventListener("click", () => window.Auth.logout());
+  cargarPrestamos();
   })();
 })();

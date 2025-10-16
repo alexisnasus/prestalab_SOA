@@ -7,13 +7,9 @@
   <link rel="stylesheet" href="assets/css/styles.css" />
   <style>
     .toolbar{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
-    .tabs{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
-    .tab{padding:.45rem .8rem;border-radius:.5rem;border:1px solid rgba(255,255,255,.12);background:#0f172a;color:#e5e7eb;cursor:pointer;transition:background .15s,border-color .15s}
-    .tab:hover{background:#111827}
-    .tab.active{background:#111827;border-color:rgba(99,102,241,.45)}
     .table{width:100%;border-collapse:separate;border-spacing:0 .5rem}
     .tr{background:#0d1420;border:1px solid rgba(255,255,255,.06);border-radius:.6rem}
-    .td{padding:.55rem .75rem}
+    .td{padding:.55rem .75rem; vertical-align: middle;}
     .td:first-child{border-top-left-radius:.6rem;border-bottom-left-radius:.6rem}
     .td:last-child{border-top-right-radius:.6rem;border-bottom-right-radius:.6rem}
     .badge{display:inline-block;padding:.15rem .5rem;border-radius:999px;border:1px solid rgba(255,255,255,.15)}
@@ -22,6 +18,8 @@
     .b-no{background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.35);color:#fecaca}
     .muted{opacity:.82}
     .btn-xs{padding:.25rem .5rem;font-size:.9rem;border-radius:.4rem;border:1px solid rgba(255,255,255,.12);background:#131c2c}
+    #tabAdmin { display: none; }
+    .mt-3 { margin-top: 1.5rem; }
   </style>
 </head>
 <body>
@@ -32,6 +30,7 @@
       <a href="catalog.html" class="nav-link">Catálogo</a>
       <a href="mis-solicitudes.html" class="nav-link">Mis solicitudes</a>
       <a href="mis-prestamos.html" class="nav-link">Mis préstamos</a>
+      <a href="mis-multas.html" class="nav-link">Mis multas</a>
       <a href="listas-espera.html" class="nav-link">Lista de espera</a>
       <a href="reportes.html" class="nav-link">Reportes</a>
       <a href="sugerencias.html" class="nav-link active">Sugerencias</a>
@@ -44,32 +43,33 @@
 
   <main class="container">
     <section class="card">
-      <h2>Sugerencias</h2>
-      <p id="sugState" style="display:none"></p>
-
-      <div class="tabs" style="margin:.25rem 0 1rem">
-        <button class="tab active" data-tab="enviar">Enviar sugerencia</button>
-        <button class="tab" data-tab="admin" id="tabAdmin" style="display:none">Administrar</button>
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h2>Sugerencias</h2>
+        <button class="tab" id="tabAdmin">Administrar</button>
       </div>
+      <div id="sugState" style="display:none;"></div>
 
-      <!-- TAB: ENVIAR -->
-      <div id="tab-enviar">
+      <div id="panel-enviar">
         <form id="sugForm" class="mt-2" autocomplete="off">
-          <div class="toolbar">
-            <input id="sugTitulo" class="input" placeholder="Título / Asunto de la sugerencia" required style="min-width:280px">
+          <div class="field">
+              <label for="sugTitulo">Título / Asunto</label>
+              <input id="sugTitulo" class="input" placeholder="Ej: Mejorar el buscador del catálogo" required>
           </div>
-          <textarea id="sugDetalle" class="input" rows="5" placeholder="Cuéntanos tu idea o mejora…" required style="margin:.6rem 0;width:100%"></textarea>
-          <div style="display:flex;gap:.5rem;align-items:center;justify-content:flex-end">
+          <div class="field" style="margin-top: 0.75rem;">
+              <label for="sugDetalle">Cuéntanos tu idea o mejora...</label>
+              <textarea id="sugDetalle" class="input" rows="5" placeholder="Detalla aquí tu sugerencia..." required></textarea>
+          </div>
+          <div style="display:flex;gap:.5rem;align-items:center;justify-content:flex-end; margin-top: 0.5rem;">
             <span class="muted" id="sugCount">0/800</span>
-            <button class="btn" type="submit">Enviar</button>
+            <button class="btn" type="submit">Enviar Sugerencia</button>
           </div>
         </form>
 
-        <h3 class="mt-3">Mis sugerencias</h3>
+        <h3 class="mt-3">Mis Sugerencias</h3>
         <div class="toolbar">
           <input id="mySearch" class="input" placeholder="Buscar en mis sugerencias…">
           <select id="myStatus" class="input">
-            <option value="">Todos</option>
+            <option value="">Todos los estados</option>
             <option value="PENDIENTE">Pendiente</option>
             <option value="APROBADA">Aprobada</option>
             <option value="RECHAZADA">Rechazada</option>
@@ -92,9 +92,10 @@
         </div>
       </div>
 
-      <!-- TAB: ADMIN -->
-      <div id="tab-admin" style="display:none">
-        <div class="toolbar">
+      <div id="panel-admin" style="display:none">
+        <h3 class="mt-3">Administrar Todas las Sugerencias</h3>
+        <button class="btn btn-ghost" id="btnBackToUser">Volver a mis sugerencias</button>
+        <div class="toolbar" style="margin-top: 1rem;">
           <input id="admSearch" class="input" placeholder="Buscar (título, correo, id…)">
           <select id="admStatus" class="input">
             <option value="">Todos</option>
@@ -104,18 +105,12 @@
           </select>
           <button id="btnAdmRefresh" class="btn btn-ghost">Actualizar</button>
         </div>
-
         <div class="mt-2">
           <table class="table">
             <thead>
               <tr class="tr" style="background:transparent;border:0">
-                <th class="td">ID</th>
-                <th class="td">Título</th>
-                <th class="td">Detalle</th>
-                <th class="td">Usuario</th>
-                <th class="td">Estado</th>
-                <th class="td">Fecha</th>
-                <th class="td" style="text-align:right">Acciones</th>
+                <th class="td">ID</th><th class="td">Detalle</th><th class="td">Usuario ID</th>
+                <th class="td">Estado</th><th class="td">Fecha</th><th class="td" style="text-align:right">Acciones</th>
               </tr>
             </thead>
             <tbody id="admTable"></tbody>
