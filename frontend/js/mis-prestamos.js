@@ -126,4 +126,6 @@
   document.getElementById("userBadge").textContent = user?.correo || "Usuario";
   document.getElementById("btnLogout").addEventListener("click", () => window.Auth.logout());
   cargarPrestamos();
+
+  
 })();

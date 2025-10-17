@@ -241,4 +241,19 @@
   document.getElementById("btnLogout").addEventListener("click", () => window.Auth.logout());
   cargarPrestamos();
   })();
+
+  if (await isAdmin()) {
+  tabAdminBtn.style.display = 'inline-block';
+  // AÑADE ESTO:
+  const nav = document.getElementById('main-nav'); // Asegúrate que el div tenga id="main-nav"
+  if (nav) {
+    nav.innerHTML = `
+      <span class="brand">PrestaLab</span>
+      <a href="dashboard.html" class="nav-link">Dashboard</a>
+      <a href="admin.html" class="nav-link">Administración</a>
+      <a href="reportes.html" class="nav-link">Reportes</a>
+      <a href="sugerencias.html" class="nav-link active">Sugerencias</a>
+    `;
+  }
+}
 })();

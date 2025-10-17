@@ -269,4 +269,6 @@
     .addEventListener("click", () => window.Auth.logout());
 
   buscarSolicitudes();
+
+  
 })();
