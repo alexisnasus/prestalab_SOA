@@ -1,23 +1,28 @@
-from fastapi import FastAPI, HTTPException, Body, status
-from sqlalchemy import create_engine, text
+from fastapi import FastAPI, HTTPException, Body, status, Depends
+from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
+from pydantic import BaseModel
 import os
 import sys
-sys.path.append('/app')  # Para importar bus_client desde el contenedor
+from datetime import datetime
+
+sys.path.append('/app')
 from bus_client import register_service
 from service_logger import create_service_logger
+from models import get_db, Multa, Prestamo, Solicitud, Usuario
 
 app = FastAPI(title="Servicio de Gestión de Multas")
 
-DATABASE_URL = os.getenv("DATABASE_URL")
-engine = create_engine(DATABASE_URL, echo=True, future=True)
-
-# Crear logger para este servicio
 logger = create_service_logger("multa")
 
-# ============================================================================
-# REGISTRO EN EL BUS (SOA)
-# ============================================================================
+class MultaCreate(BaseModel):
+    prestamo_id: int
+    motivo: str
+    valor: float
+    estado: str
+
+class EstadoUpdate(BaseModel):
+    estado: str
 
 @app.on_event("startup")
 async def startup():
@@ -34,90 +39,88 @@ async def startup():
     
     logger.registered(os.getenv("BUS_URL", "http://bus:8000"))
 
-# ============================================================================
-# ENDPOINTS
-# ============================================================================
-
 @app.get("/")
 def root():
     return {"message": "Servicio MULTA disponible"}
 
-# Consultar multas de un usuario
 @app.get("/usuarios/{id}/multas")
-def get_multas_usuario(id: int):
+def get_multas_usuario(id: int, db: Session = Depends(get_db)):
     logger.request_received("GET", f"/usuarios/{id}/multas")
     
-    query = text("""
-        SELECT m.id, m.prestamo_id, m.motivo, m.valor, m.estado, m.registro_instante
-        FROM multa m
-        JOIN prestamo p ON m.prestamo_id = p.id
-        JOIN solicitud s ON p.solicitud_id = s.id
-        WHERE s.usuario_id = :usuario_id
-    """)
-    
-    logger.db_query(str(query), {"usuario_id": id})
-    
     try:
-        with engine.connect() as conn:
-            result = conn.execute(query, {"usuario_id": id}).mappings().all()
+        multas = (
+            db.query(Multa)
+            .join(Prestamo)
+            .join(Solicitud)
+            .filter(Solicitud.usuario_id == id)
+            .all()
+        )
         
-        response_data = {"usuario_id": id, "multas": result}
-        logger.response_sent(200, f"Multas del usuario {id}", f"Total: {len(result)}")
+        resultado = [
+            {
+                "id": m.id,
+                "prestamo_id": m.prestamo_id,
+                "motivo": m.motivo,
+                "valor": m.valor,
+                "estado": m.estado,
+                "registro_instante": m.registro_instante.isoformat()
+            } for m in multas
+        ]
+        
+        response_data = {"usuario_id": id, "multas": resultado}
+        logger.response_sent(200, f"Multas del usuario {id}", f"Total: {len(resultado)}")
         return response_data
     except SQLAlchemyError as e:
         logger.error("SQLAlchemyError", str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error al consultar las multas.")
 
-# Registrar multa
 @app.post("/multas", status_code=status.HTTP_201_CREATED)
-def crear_multa(multa: dict = Body(...)):
-    logger.request_received("POST", "/multas", multa)
+def crear_multa(multa: MultaCreate, db: Session = Depends(get_db)):
+    logger.request_received("POST", "/multas", multa.dict())
     
-    query = text("""
-        INSERT INTO multa (prestamo_id, motivo, valor, estado, registro_instante)
-        VALUES (:prestamo_id, :motivo, :valor, :estado, NOW())
-    """)
-    
-    logger.db_query(str(query), multa)
+    nueva_multa = Multa(
+        prestamo_id=multa.prestamo_id,
+        motivo=multa.motivo,
+        valor=multa.valor,
+        estado=multa.estado,
+        registro_instante=datetime.now()
+    )
     
     try:
-        with engine.begin() as conn:
-            result = conn.execute(query, multa)
+        db.add(nueva_multa)
+        db.commit()
+        db.refresh(nueva_multa)
         
-        response_data = {"id": result.lastrowid, "message": "Multa registrada con éxito"}
-        logger.response_sent(201, "Multa registrada", f"ID: {result.lastrowid}")
+        response_data = {"id": nueva_multa.id, "message": "Multa registrada con éxito"}
+        logger.response_sent(201, "Multa registrada", f"ID: {nueva_multa.id}")
         return response_data
     except SQLAlchemyError as e:
+        db.rollback()
         logger.error("SQLAlchemyError", str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        if "foreign key constraint fails" in str(e).lower():
+            prestamo = db.query(Prestamo).filter(Prestamo.id == multa.prestamo_id).first()
+            if not prestamo:
+                raise HTTPException(status_code=404, detail=f"El préstamo con ID {multa.prestamo_id} no existe.")
+        raise HTTPException(status_code=500, detail="Error al registrar la multa.")
 
-# Aplicar / quitar estado DEUDOR
 @app.put("/usuarios/{id}/estado")
-def actualizar_bloqueo(id: int, data: dict = Body(...)):
-    logger.request_received("PUT", f"/usuarios/{id}/estado", data)
-    
-    if "estado" not in data:
-        logger.response_sent(400, "Campo 'estado' requerido")
-        raise HTTPException(status_code=400, detail="Campo 'estado' requerido")
-    
-    query = text("""
-        UPDATE usuario
-        SET estado = :estado
-        WHERE id = :usuario_id
-    """)
-    
-    logger.db_query(str(query), {"estado": data["estado"], "usuario_id": id})
+def actualizar_bloqueo(id: int, data: EstadoUpdate, db: Session = Depends(get_db)):
+    logger.request_received("PUT", f"/usuarios/{id}/estado", data.dict())
     
     try:
-        with engine.begin() as conn:
-            result = conn.execute(query, {"estado": data["estado"], "usuario_id": id})
-            if result.rowcount == 0:
-                logger.response_sent(404, "Usuario no encontrado")
-                raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        usuario = db.query(Usuario).filter(Usuario.id == id).first()
         
-        response_data = {"message": f"Estado del usuario modificado correctamente a {data['estado']}"}
-        logger.response_sent(200, f"Estado actualizado a {data['estado']}", f"Usuario: {id}")
+        if not usuario:
+            logger.response_sent(404, "Usuario no encontrado")
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+            
+        usuario.estado = data.estado
+        db.commit()
+        
+        response_data = {"message": f"Estado del usuario modificado correctamente a {data.estado}"}
+        logger.response_sent(200, f"Estado actualizado a {data.estado}", f"Usuario: {id}")
         return response_data
     except SQLAlchemyError as e:
+        db.rollback()
         logger.error("SQLAlchemyError", str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error al actualizar el estado del usuario.")
