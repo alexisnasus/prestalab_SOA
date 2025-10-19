@@ -7,6 +7,7 @@ COPY ./services/notis/app.py /app
 COPY ./bus_client.py /app/bus_client.py
 COPY ./service_logger.py /app/service_logger.py
 
-RUN pip install fastapi uvicorn sqlalchemy pymysql httpx colorama
+# Instala las dependencias
+RUN pip install fastapi uvicorn sqlalchemy pymysql httpx colorama pydantic sqlalchemy-utils
 
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
