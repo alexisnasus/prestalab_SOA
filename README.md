@@ -273,7 +273,7 @@ docker-compose logs -f
 | POST | `/auth/login` | Autenticar usuario |
 | GET | `/usuarios/{id}` | Consultar usuario por ID |
 | PUT | `/usuarios/{id}` | Actualizar datos de usuario |
-| PUT | `/solicitudes/{id}/actualizar` | Aprobar o rechazar solicitud pendiente |
+| PUT | /solicitudes-registro/{id}/actualizar | Aprobar o rechazar solicitud de registro |
 
 ### PRART - Préstamos & Artículos (Puerto 8005)
 

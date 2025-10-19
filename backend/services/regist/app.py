@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
+from datetime import datetime
 import os
 import sys
 sys.path.append('/app')  # Para importar bus_client desde el contenedor
@@ -71,10 +72,13 @@ def registrar_usuario(usuario: UsuarioCreate = Body(...), db: Session = Depends(
             correo=data["correo"].lower(),
             tipo=data["tipo"],
             telefono=data.get("telefono", ""),
-            password=data["password"],
             estado=data.get("estado", "ACTIVO"),
-            preferencias_notificacion=data.get("preferencias_notificacion", 1)
+            preferencias_notificacion=data.get("preferencias_notificacion", 1),
+            registro_instante=datetime.now()
         )
+        
+        # Establecer la contraseña hasheada
+        nuevo_usuario.set_password(data["password"])
         
         # Si se proporciona un ID específico, establecerlo
         if data.get("id") is not None:
@@ -94,15 +98,19 @@ def registrar_usuario(usuario: UsuarioCreate = Body(...), db: Session = Depends(
         
     except IntegrityError as exc:
         db.rollback()
-        logger.error("Correo duplicado", str(exc.orig))
+        logger.error("Integridad de datos", f"Correo duplicado: {exc.orig}")
         raise HTTPException(status_code=409, detail="El correo ya está registrado")
     except SQLAlchemyError as exc:
         db.rollback()
-        logger.error("Error registrando usuario", str(exc))
-        raise HTTPException(status_code=500, detail="Error al registrar usuario")
+        logger.error("Error de base de datos", f"Error al registrar usuario: {str(exc)}")
+        raise HTTPException(status_code=500, detail=f"Error interno al registrar usuario")
+    except Exception as exc:
+        db.rollback()
+        logger.error("Error inesperado", f"Error al registrar usuario: {str(exc)}")
+        raise HTTPException(status_code=500, detail=f"Error inesperado en el servidor")
 
-# Login usuario
-@app.post("/auth/login")
+# Autenticar usuario
+@app.post("/auth/login", status_code=status.HTTP_200_OK)
 def login(auth: LoginRequest = Body(...), db: Session = Depends(get_db)):
     payload = auth.dict()
     correo = payload["correo"].lower()
@@ -111,7 +119,7 @@ def login(auth: LoginRequest = Body(...), db: Session = Depends(get_db)):
     # Buscar usuario por correo usando ORM
     user = db.query(Usuario).filter(Usuario.correo == correo).first()
     
-    if not user or user.password != payload["password"]:
+    if not user or not user.check_password(payload["password"]):
         logger.response_sent(401, "Credenciales inválidas")
         raise HTTPException(status_code=401, detail="Credenciales inválidas")
 
@@ -158,7 +166,10 @@ def actualizar_usuario(id: int, datos: dict = Body(...), db: Session = Depends(g
     # Actualizar solo los campos proporcionados
     try:
         for key, value in datos.items():
-            if hasattr(user, key):
+            if key == "password":
+                # Hashear la contraseña si se está actualizando
+                user.set_password(value)
+            elif hasattr(user, key):
                 setattr(user, key, value)
         
         db.commit()
@@ -177,10 +188,10 @@ class SolicitudActualizacion(BaseModel):
     estado: str = Field(..., pattern="^(APROBADA|RECHAZADA)$")
 
 
-# Aprobar o rechazar solicitud
-@app.put("/solicitudes/{solicitud_id}/actualizar")
-def actualizar_solicitud(solicitud_id: int, actualizacion: SolicitudActualizacion = Body(...), db: Session = Depends(get_db)):
-    logger.request_received("PUT", f"/solicitudes/{solicitud_id}/actualizar", actualizacion.dict())
+# Aprobar o rechazar solicitud de registro
+@app.put("/solicitudes-registro/{solicitud_id}/actualizar")
+def actualizar_solicitud_registro(solicitud_id: int, actualizacion: SolicitudActualizacion = Body(...), db: Session = Depends(get_db)):
+    logger.request_received("PUT", f"/solicitudes-registro/{solicitud_id}/actualizar", actualizacion.dict())
     
     # Buscar la solicitud por ID usando ORM
     solicitud = db.query(Solicitud).filter(Solicitud.id == solicitud_id).first()
