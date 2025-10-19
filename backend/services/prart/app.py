@@ -1,23 +1,50 @@
-from fastapi import FastAPI, HTTPException, Query, Path, Body, status
+from fastapi import FastAPI, HTTPException, Query, Path, Body, status, Depends
 from fastapi.responses import JSONResponse
-from sqlalchemy import create_engine, text, bindparam
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy import func
 import os
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, List
 import sys
 from pydantic import BaseModel, Field
-sys.path.append('/app')  # Para importar bus_client desde el contenedor
+
+sys.path.append('/app')
 from bus_client import register_service
 from service_logger import create_service_logger
+from models import (
+    get_db, Item, Usuario, Solicitud, ItemSolicitud, Prestamo, Ventana, ItemExistencia
+)
 
 app = FastAPI(title="Servicio de gestión de Préstamos & Artículos")
-
-DATABASE_URL = os.getenv("DATABASE_URL")
-engine = create_engine(DATABASE_URL, echo=True, future=True)
-
-# Crear logger para este servicio
 logger = create_service_logger("prart")
+
+# ============================================================================
+# PYDANTIC MODELS
+# ============================================================================
+
+class ReservaCreate(BaseModel):
+    solicitud_id: int
+    item_existencia_id: int
+    inicio: datetime
+    fin: datetime
+
+class SolicitudCreate(BaseModel):
+    usuario_id: Optional[int] = Field(default=None, description="ID del usuario solicitante")
+    correo: Optional[str] = Field(default=None, description="Correo del usuario solicitante")
+    tipo: str = Field(..., min_length=1, description="Tipo de solicitud")
+
+class PrestamoCreate(BaseModel):
+    solicitud_id: int
+    item_existencia_id: int
+    comentario: Optional[str] = None
+
+class DevolucionCreate(BaseModel):
+    prestamo_id: int
+    comentario: Optional[str] = None
+
+class EstadoUpdate(BaseModel):
+    estado: str
 
 # ============================================================================
 # REGISTRO EN EL BUS (SOA)
@@ -25,9 +52,7 @@ logger = create_service_logger("prart")
 
 @app.on_event("startup")
 async def startup():
-    """Registra el servicio en el bus al iniciar"""
     logger.startup("http://prart:8000")
-    
     await register_service(
         app=app,
         service_name="prart",
@@ -35,7 +60,6 @@ async def startup():
         description="Gestión de préstamos y artículos del catálogo",
         version="1.0.0"
     )
-    
     logger.registered(os.getenv("BUS_URL", "http://bus:8000"))
 
 # ============================================================================
@@ -46,324 +70,247 @@ async def startup():
 def root():
     return {"message": "Servicio PRART disponible"}
 
-# Obtener items
-@app.get("/items")
+@app.get("/items", status_code=status.HTTP_200_OK)
 def buscar_items(
-    nombre: str = Query(None),
-    tipo: str = Query(None)
+    nombre: Optional[str] = Query(None),
+    tipo: Optional[str] = Query(None),
+    db: Session = Depends(get_db)
 ):
     logger.request_received("GET", "/items", {"nombre": nombre, "tipo": tipo})
     try:
-        query = "SELECT * FROM item WHERE 1=1"
-        params = {}
+        query = db.query(Item)
         if nombre:
-            query += " AND nombre LIKE :nombre"
-            params["nombre"] = f"%{nombre}%"
+            query = query.filter(Item.nombre.like(f"%{nombre}%"))
         if tipo:
-            query += " AND tipo = :tipo"
-            params["tipo"] = tipo
-
-        logger.db_query(query, params)
+            query = query.filter(Item.tipo == tipo)
         
-        with engine.connect() as conn:
-            result = conn.execute(text(query), params).mappings().all()
-        
-        logger.response_sent(200, "Items obtenidos", f"Total: {len(result)}")
-        return result
+        items = query.all()
+        logger.response_sent(200, "Items obtenidos", f"Total: {len(items)}")
+        return items
     except SQLAlchemyError as e:
         logger.error("SQLAlchemyError", str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error al buscar items.")
 
-# Registrar reserva con ventana
 @app.post("/reservas", status_code=status.HTTP_201_CREATED)
-def crear_reserva(
-    solicitud_id: int = Body(...),
-    item_existencia_id: int = Body(...),
-    inicio: str = Body(...),
-    fin: str = Body(...)
-):
-    try:
-        inicio_dt = datetime.fromisoformat(inicio)
-        fin_dt = datetime.fromisoformat(fin)
-        if fin_dt <= inicio_dt:
-            raise HTTPException(status_code=400, detail="La fecha de fin debe ser mayor a la fecha de inicio")
+def crear_reserva(reserva: ReservaCreate, db: Session = Depends(get_db)):
+    logger.request_received("POST", "/reservas", reserva.dict())
+    if reserva.fin <= reserva.inicio:
+        raise HTTPException(status_code=400, detail="La fecha de fin debe ser mayor a la fecha de inicio")
 
-        with engine.begin() as conn:
-            query = """
-            INSERT INTO ventana (solicitud_id, item_existencia_id, inicio, fin)
-            VALUES (:solicitud_id, :item_existencia_id, :inicio, :fin)
-            """
-            conn.execute(
-                text(query),
-                {"solicitud_id": solicitud_id, "item_existencia_id": item_existencia_id, "inicio": inicio_dt, "fin": fin_dt}
-            )
+    try:
+        nueva_reserva = Ventana(**reserva.dict())
+        db.add(nueva_reserva)
+        db.commit()
+        logger.response_sent(201, "Reserva creada", f"Solicitud ID: {reserva.solicitud_id}")
         return {"message": "Reserva creada exitosamente"}
     except SQLAlchemyError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        db.rollback()
+        logger.error("SQLAlchemyError", str(e))
+        raise HTTPException(status_code=500, detail="Error al crear la reserva.")
 
-# Cancelar/caducar reserva
 @app.delete("/reservas/{reserva_id}", status_code=status.HTTP_200_OK)
-def cancelar_reserva(reserva_id: int = Path(...)):
+def cancelar_reserva(reserva_id: int, db: Session = Depends(get_db)):
+    logger.request_received("DELETE", f"/reservas/{reserva_id}")
     try:
-        with engine.begin() as conn:
-            query = "DELETE FROM ventana WHERE id = :reserva_id"
-            result = conn.execute(text(query), {"reserva_id": reserva_id})
-        if result.rowcount == 0:
+        reserva = db.query(Ventana).filter(Ventana.id == reserva_id).first()
+        if not reserva:
             raise HTTPException(status_code=404, detail="Reserva no encontrada")
+        
+        db.delete(reserva)
+        db.commit()
+        logger.response_sent(200, "Reserva cancelada", f"ID: {reserva_id}")
         return {"message": "Reserva cancelada"}
     except SQLAlchemyError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        db.rollback()
+        logger.error("SQLAlchemyError", str(e))
+        raise HTTPException(status_code=500, detail="Error al cancelar la reserva.")
 
-class SolicitudCreate(BaseModel):
-    usuario_id: Optional[int] = Field(default=None, description="ID del usuario solicitante")
-    correo: Optional[str] = Field(default=None, description="Correo del usuario solicitante")
-    tipo: str = Field(..., min_length=1, description="Tipo de solicitud")
-
-
-# Obtener solicitudes de un usuario
 @app.get("/solicitudes", status_code=status.HTTP_200_OK)
 def obtener_solicitudes_usuario(
     usuario_id: Optional[int] = Query(None, ge=1),
-    correo: Optional[str] = Query(None)
+    correo: Optional[str] = Query(None),
+    db: Session = Depends(get_db)
 ):
-    filtros = {"usuario_id": usuario_id, "correo": correo}
-    logger.request_received("GET", "/solicitudes", filtros)
+    logger.request_received("GET", "/solicitudes", {"usuario_id": usuario_id, "correo": correo})
 
-    correo_norm = correo.strip().lower() if correo else None
-
-    if usuario_id is None and correo_norm is None:
-        logger.response_sent(422, "Debe proporcionar 'usuario_id' o 'correo'")
+    if not usuario_id and not correo:
         raise HTTPException(status_code=422, detail="Debe proporcionar 'usuario_id' o 'correo'")
 
     try:
-        with engine.connect() as conn:
-            # Resolver usuario
-            resolved_user_id: Optional[int] = None
-            if usuario_id is not None and correo_norm is not None:
-                lookup = text("SELECT id FROM usuario WHERE id = :usuario_id AND LOWER(correo) = :correo")
-                params = {"usuario_id": usuario_id, "correo": correo_norm}
-                logger.db_query(str(lookup), params)
-                match = conn.execute(lookup, params).mappings().first()
-                if not match:
-                    logger.response_sent(400, "usuario_id no coincide con el correo proporcionado")
-                    raise HTTPException(status_code=400, detail="El usuario_id no coincide con el correo proporcionado")
-                resolved_user_id = usuario_id
-            elif usuario_id is not None:
-                lookup = text("SELECT id FROM usuario WHERE id = :usuario_id")
-                params = {"usuario_id": usuario_id}
-                logger.db_query(str(lookup), params)
-                match = conn.execute(lookup, params).mappings().first()
-                if not match:
-                    logger.response_sent(404, f"Usuario {usuario_id} no encontrado")
-                    raise HTTPException(status_code=404, detail="Usuario no encontrado")
-                resolved_user_id = usuario_id
-            else:
-                lookup = text("SELECT id FROM usuario WHERE LOWER(correo) = :correo")
-                params = {"correo": correo_norm}
-                logger.db_query(str(lookup), params)
-                match = conn.execute(lookup, params).mappings().first()
-                if not match:
-                    logger.response_sent(404, f"Usuario con correo {correo_norm} no encontrado")
-                    raise HTTPException(status_code=404, detail="No se encontró un usuario con ese correo")
-                resolved_user_id = match["id"]
+        user_query = db.query(Usuario)
+        if usuario_id and correo:
+            user = user_query.filter(Usuario.id == usuario_id, func.lower(Usuario.correo) == correo.lower()).first()
+            if not user:
+                raise HTTPException(status_code=400, detail="El usuario_id no coincide con el correo proporcionado")
+        elif usuario_id:
+            user = user_query.filter(Usuario.id == usuario_id).first()
+        else:
+            user = user_query.filter(func.lower(Usuario.correo) == correo.lower()).first()
 
-            solicitudes_query = text(
-                """
-                SELECT 
-                    s.id, s.usuario_id, s.tipo, s.estado, s.registro_instante,
-                    COALESCE(i.nombre, i_prestamo.nombre, i_ventana.nombre) AS nombre_articulo
-                FROM solicitud s
-                LEFT JOIN item_solicitud si ON s.id = si.solicitud_id
-                LEFT JOIN item i ON si.item_id = i.id
-                LEFT JOIN prestamo p ON s.id = p.solicitud_id
-                LEFT JOIN item_existencia ie_prestamo ON p.item_existencia_id = ie_prestamo.id
-                LEFT JOIN item i_prestamo ON ie_prestamo.item_id = i_prestamo.id
-                LEFT JOIN ventana v ON s.id = v.solicitud_id
-                LEFT JOIN item_existencia ie_ventana ON v.item_existencia_id = ie_ventana.id
-                LEFT JOIN item i_ventana ON ie_ventana.item_id = i_ventana.id
-                WHERE s.usuario_id = :usuario_id
-                GROUP BY s.id
-                ORDER BY s.registro_instante DESC
-                """
-            )
-            logger.db_query(str(solicitudes_query), {"usuario_id": resolved_user_id})
-            solicitudes_rows = conn.execute(solicitudes_query, {"usuario_id": resolved_user_id}).mappings().all()
+        if not user:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
-            solicitudes = []
-            for row in solicitudes_rows:
-                solicitud = dict(row)
-                registro = solicitud.get("registro_instante")
-                if isinstance(registro, datetime):
-                    solicitud["registro_instante"] = registro.isoformat()
-                
-                # El nombre del artículo ahora viene en la consulta principal
-                nombre_articulo = solicitud.pop("nombre_articulo", None)
-                solicitud["items"] = []
-                if nombre_articulo:
-                    solicitud["items"].append({"nombre": nombre_articulo})
-                
-                solicitudes.append(solicitud)
+        solicitudes = db.query(Solicitud).filter(Solicitud.usuario_id == user.id)\
+            .options(
+                joinedload(Solicitud.items).joinedload(ItemSolicitud.item),
+                joinedload(Solicitud.prestamos).joinedload(Prestamo.item_existencia).joinedload(ItemExistencia.item),
+                joinedload(Solicitud.ventanas).joinedload(Ventana.item_existencia).joinedload(ItemExistencia.item)
+            ).order_by(Solicitud.registro_instante.desc()).all()
 
+        response_data = []
+        for s in solicitudes:
+            item_nombres = set()
+            for item_sol in s.items:
+                item_nombres.add(item_sol.item.nombre)
+            for prestamo in s.prestamos:
+                item_nombres.add(prestamo.item_existencia.item.nombre)
+            for ventana in s.ventanas:
+                item_nombres.add(ventana.item_existencia.item.nombre)
+
+            response_data.append({
+                "id": s.id,
+                "usuario_id": s.usuario_id,
+                "tipo": s.tipo,
+                "estado": s.estado,
+                "registro_instante": s.registro_instante.isoformat(),
+                "items": [{"nombre": nombre} for nombre in item_nombres]
+            })
+        
         respuesta = {
-            "usuario_id": resolved_user_id,
-            "total": len(solicitudes),
-            "solicitudes": solicitudes
+            "usuario_id": user.id,
+            "total": len(response_data),
+            "solicitudes": response_data
         }
-        logger.response_sent(200, "Solicitudes obtenidas", f"Total: {len(solicitudes)}")
+        logger.response_sent(200, "Solicitudes obtenidas", f"Total: {len(response_data)}")
         return JSONResponse(content=respuesta)
 
-    except HTTPException:
-        raise
     except SQLAlchemyError as e:
         logger.error("SQLAlchemyError", str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error al obtener solicitudes.")
 
-
-# Registrar solicitud
 @app.post("/solicitudes", status_code=status.HTTP_201_CREATED)
-def crear_solicitud(datos: SolicitudCreate = Body(...)):
-    payload = datos.model_dump(exclude_none=True)
-    logger.request_received("POST", "/solicitudes", payload)
+def crear_solicitud(datos: SolicitudCreate, db: Session = Depends(get_db)):
+    logger.request_received("POST", "/solicitudes", datos.dict(exclude_none=True))
+
+    if not datos.usuario_id and not datos.correo:
+        raise HTTPException(status_code=422, detail="Debe proporcionar 'usuario_id' o 'correo'")
 
     try:
-        usuario_id = datos.usuario_id
-        correo = datos.correo.strip().lower() if datos.correo else None
-
-        if usuario_id is None and correo is None:
-            raise HTTPException(status_code=422, detail="Debe proporcionar 'usuario_id' o 'correo'")
-
-        if usuario_id is not None and correo is not None:
-            lookup_query = text("SELECT id FROM usuario WHERE id = :usuario_id AND LOWER(correo) = :correo")
-            params = {"usuario_id": usuario_id, "correo": correo}
-            logger.db_query(str(lookup_query), params)
-            with engine.connect() as conn:
-                match = conn.execute(lookup_query, params).mappings().first()
-            if not match:
-                raise HTTPException(status_code=400, detail="El usuario_id no coincide con el correo proporcionado")
-
-        if usuario_id is None:
-            lookup_query = text("SELECT id FROM usuario WHERE LOWER(correo) = :correo")
-            params = {"correo": correo}
-            logger.db_query(str(lookup_query), params)
-            with engine.connect() as conn:
-                user = conn.execute(lookup_query, params).mappings().first()
+        user_query = db.query(Usuario)
+        if datos.usuario_id and datos.correo:
+            user = user_query.filter(Usuario.id == datos.usuario_id, func.lower(Usuario.correo) == datos.correo.lower()).first()
             if not user:
-                raise HTTPException(status_code=404, detail="No se encontró un usuario con ese correo")
-            usuario_id = user["id"]
-            payload["usuario_id"] = usuario_id
+                raise HTTPException(status_code=400, detail="El usuario_id no coincide con el correo proporcionado")
+        elif datos.usuario_id:
+            user = user_query.filter(Usuario.id == datos.usuario_id).first()
+        else:
+            user = user_query.filter(func.lower(Usuario.correo) == datos.correo.lower()).first()
+        
+        if not user:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
-        insert_query = text(
-            """
-            INSERT INTO solicitud (usuario_id, tipo, estado, registro_instante)
-            VALUES (:usuario_id, :tipo, 'PENDIENTE', NOW())
-            """
+        nueva_solicitud = Solicitud(
+            usuario_id=user.id,
+            tipo=datos.tipo,
+            estado='PENDIENTE',
+            registro_instante=datetime.now()
         )
-        insert_params = {"usuario_id": usuario_id, "tipo": datos.tipo}
-        logger.db_query(str(insert_query), insert_params)
-
-        with engine.begin() as conn:
-            result = conn.execute(insert_query, insert_params)
-            solicitud_id = result.lastrowid
+        db.add(nueva_solicitud)
+        db.commit()
+        db.refresh(nueva_solicitud)
 
         response_payload = {
-            "message": "Reserva creada exitosamente",
-            "solicitud_id": solicitud_id,
-            "usuario_id": usuario_id,
+            "message": "Solicitud creada exitosamente",
+            "solicitud_id": nueva_solicitud.id,
+            "usuario_id": user.id,
         }
-        logger.response_sent(201, "Solicitud creada", f"ID: {solicitud_id}")
+        logger.response_sent(201, "Solicitud creada", f"ID: {nueva_solicitud.id}")
         return response_payload
-    except HTTPException:
-        raise
     except SQLAlchemyError as e:
+        db.rollback()
         logger.error("SQLAlchemyError", str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error al crear la solicitud.")
 
-# Registrar préstamo
 @app.post("/prestamos", status_code=status.HTTP_201_CREATED)
-def registrar_prestamo(
-    solicitud_id: int = Body(...),
-    item_existencia_id: int = Body(...),
-    comentario: str = Body(None)
-):
-    logger.request_received("POST", "/prestamos", {"solicitud_id": solicitud_id, "item_existencia_id": item_existencia_id})
+def registrar_prestamo(prestamo_data: PrestamoCreate, db: Session = Depends(get_db)):
+    logger.request_received("POST", "/prestamos", prestamo_data.dict())
     try:
         fecha_prestamo = datetime.now()
-        fecha_devolucion = fecha_prestamo + timedelta(days=30)
-        
-        query = text("""
-            INSERT INTO prestamo (item_existencia_id, solicitud_id, fecha_prestamo, fecha_devolucion, estado, renovaciones_realizadas, registro_instante, comentario)
-            VALUES (:item_existencia_id, :solicitud_id, :fecha_prestamo, :fecha_devolucion, 'ACTIVO', 0, NOW(), :comentario)
-        """)
-        
-        logger.db_query(str(query), {"solicitud_id": solicitud_id, "item_existencia_id": item_existencia_id})
-        
-        with engine.begin() as conn:
-            conn.execute(
-                query,
-                {"item_existencia_id": item_existencia_id, "solicitud_id": solicitud_id, "fecha_prestamo": fecha_prestamo, "fecha_devolucion": fecha_devolucion, "comentario": comentario}
-            )
-        
-        logger.response_sent(201, "Préstamo registrado", f"Solicitud: {solicitud_id}")
+        nuevo_prestamo = Prestamo(
+            item_existencia_id=prestamo_data.item_existencia_id,
+            solicitud_id=prestamo_data.solicitud_id,
+            fecha_prestamo=fecha_prestamo,
+            fecha_devolucion=fecha_prestamo + timedelta(days=30),
+            estado='ACTIVO',
+            renovaciones_realizadas=0,
+            registro_instante=datetime.now(),
+            comentario=prestamo_data.comentario
+        )
+        db.add(nuevo_prestamo)
+        db.commit()
+        logger.response_sent(201, "Préstamo registrado", f"Solicitud: {prestamo_data.solicitud_id}")
         return {"message": "Préstamo registrado"}
     except SQLAlchemyError as e:
+        db.rollback()
         logger.error("SQLAlchemyError", str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error al registrar el préstamo.")
 
-# Registrar devolución de ítem
 @app.post("/devoluciones", status_code=status.HTTP_200_OK)
-def registrar_devolucion(
-    prestamo_id: int = Body(...),
-    comentario: str = Body(None)
-):
+def registrar_devolucion(devolucion_data: DevolucionCreate, db: Session = Depends(get_db)):
+    logger.request_received("POST", "/devoluciones", devolucion_data.dict())
     try:
-        with engine.begin() as conn:
-            query = """
-            UPDATE prestamo
-            SET estado = 'DEVUELTO', comentario = :comentario
-            WHERE id = :prestamo_id
-            """
-            result = conn.execute(text(query), {"prestamo_id": prestamo_id, "comentario": comentario})
-        if result.rowcount == 0:
-            raise HTTPException(status_code=404, detail="Préstamo no encontrado o no activo")
+        prestamo = db.query(Prestamo).filter(Prestamo.id == devolucion_data.prestamo_id).first()
+        if not prestamo:
+            raise HTTPException(status_code=404, detail="Préstamo no encontrado")
+        
+        prestamo.estado = 'DEVUELTO'
+        prestamo.comentario = devolucion_data.comentario
+        prestamo.fecha_devolucion = datetime.now()
+        db.commit()
+        
+        logger.response_sent(200, "Devolución registrada", f"Préstamo ID: {devolucion_data.prestamo_id}")
         return {"message": "Devolución registrada"}
     except SQLAlchemyError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        db.rollback()
+        logger.error("SQLAlchemyError", str(e))
+        raise HTTPException(status_code=500, detail="Error al registrar la devolución.")
 
-# Renovar préstamo
 @app.put("/prestamos/{prestamo_id}/renovar", status_code=status.HTTP_200_OK)
-def renovar_prestamo(prestamo_id: int = Path(...)):
+def renovar_prestamo(prestamo_id: int, db: Session = Depends(get_db)):
+    logger.request_received("PUT", f"/prestamos/{prestamo_id}/renovar")
     try:
-        fecha_prestamo = datetime.now()
-        fecha_devolucion = fecha_prestamo + timedelta(days=30)
-        with engine.begin() as conn:
-            query = """
-            UPDATE prestamo
-            SET renovaciones_realizadas = renovaciones_realizadas + 1, fecha_prestamo = :fecha_prestamo, fecha_devolucion = :fecha_devolucion, comentario= 'Préstamo renovado', estado= 'ACTIVO'
-            WHERE id = :prestamo_id
-            """
-            result = conn.execute(text(query), {"prestamo_id": prestamo_id, "fecha_prestamo": fecha_prestamo, "fecha_devolucion": fecha_devolucion})
-        if result.rowcount == 0:
+        prestamo = db.query(Prestamo).filter(Prestamo.id == prestamo_id).first()
+        if not prestamo:
             raise HTTPException(status_code=404, detail="Préstamo no encontrado")
+
+        prestamo.renovaciones_realizadas += 1
+        prestamo.fecha_prestamo = datetime.now()
+        prestamo.fecha_devolucion = datetime.now() + timedelta(days=30)
+        prestamo.comentario = 'Préstamo renovado'
+        prestamo.estado = 'ACTIVO'
+        db.commit()
+        
+        logger.response_sent(200, "Préstamo renovado", f"ID: {prestamo_id}")
         return {"message": "Préstamo renovado"}
     except SQLAlchemyError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        db.rollback()
+        logger.error("SQLAlchemyError", str(e))
+        raise HTTPException(status_code=500, detail="Error al renovar el préstamo.")
 
-# Actualizar estado de item/existencia
 @app.put("/items/{existencia_id}/estado", status_code=status.HTTP_200_OK)
-def actualizar_estado(
-    existencia_id: int = Path(...),
-    body: dict = Body(...)
-):
-    estado = body.get("estado")
-    if not estado:
-        raise HTTPException(status_code=400, detail="Falta el campo 'estado'")
-
+def actualizar_estado(existencia_id: int, body: EstadoUpdate, db: Session = Depends(get_db)):
+    logger.request_received("PUT", f"/items/{existencia_id}/estado", body.dict())
     try:
-        with engine.begin() as conn:
-            query = "UPDATE item_existencia SET estado = :estado WHERE id = :existencia_id"
-            result = conn.execute(text(query), {"estado": estado, "existencia_id": existencia_id})
-        if result.rowcount == 0:
+        item_existencia = db.query(ItemExistencia).filter(ItemExistencia.id == existencia_id).first()
+        if not item_existencia:
             raise HTTPException(status_code=404, detail="Ítem no encontrado")
-        return {"message": f"Estado actualizado a {estado}"}
+        
+        item_existencia.estado = body.estado
+        db.commit()
+        
+        logger.response_sent(200, "Estado actualizado", f"ID: {existencia_id}, Estado: {body.estado}")
+        return {"message": f"Estado actualizado a {body.estado}"}
     except SQLAlchemyError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        db.rollback()
+        logger.error("SQLAlchemyError", str(e))
+        raise HTTPException(status_code=500, detail="Error al actualizar el estado.")
