@@ -2,3 +2,5 @@
 /backend/db/data
 ./backend/venv
 /backend/venv
+backend/bus_data/bus_data.db
+backend/bus_data/bus_data.db

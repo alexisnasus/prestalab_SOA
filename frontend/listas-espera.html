@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PrestaLab · Lista de espera</title>
+
+  <!-- Estilos globales -->
+  <link rel="stylesheet" href="assets/css/styles.css" />
+
+  <!-- Mini estilos locales: autocompletar -->
+  <style>
+    .ac-panel{
+      position: fixed;
+      left: 0; top: 0;               
+      display: none;
+      max-height: 260px;
+      overflow: auto;
+      background: rgba(17,24,39,.98);
+      backdrop-filter: blur(4px);
+      border: 1px solid rgba(148,163,184,.25);
+      border-radius: 10px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.35);
+      z-index: 9999;
+    }
+    /* Soporte para las dos variantes (.ac-option usada por el JS y .ac-item si la necesitas) */
+    .ac-option, .ac-item{ padding:10px 12px; cursor:pointer; border-bottom:1px solid rgba(148,163,184,.12); }
+    .ac-option:last-child, .ac-item:last-child{ border-bottom:0; }
+    .ac-option:hover, .ac-item:hover{ background: rgba(34,197,94,.08); }
+    .ac-title{ font-weight:600; color:#e5e7eb; margin-bottom:2px; }
+    .ac-meta{ font-size:.85rem; color:rgba(226,232,240,.75); }
+    .ac-empty{ padding:14px; color:rgba(226,232,240,.7); text-align:center; }
+  </style>
+</head>
+<body>
+  <header class="nav">
+    <div class="nav-left">
+      <span class="brand">PrestaLab</span>
+      <a href="dashboard.html" class="nav-link">Inicio</a>
+      <a href="catalog.html" class="nav-link">Catálogo</a>
+      <a href="mis-solicitudes.html" class="nav-link">Mis solicitudes</a>
+      <a href="mis-prestamos.html" class="nav-link">Mis préstamos</a>
+      <a href="mis-multas.html" class="nav-link">Mis multas</a>
+      <a href="listas-espera.html" class="nav-link active">Lista de espera</a>
+      <a href="reportes.html" class="nav-link">Reportes</a>
+      <a href="sugerencias.html" class="nav-link">Sugerencias</a>
+      <a href="mi-perfil.html" class="nav-link">Mi Perfil</a>
+      <a href="mis-notificaciones.html" class="nav-link">Notificaciones</a>
+    </div>
+    <div class="nav-right">
+      <span id="userBadge" class="badge">Cargando…</span>
+      <button id="btnLogout" class="btn btn-ghost">Cerrar sesión</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="card">
+      <h2>Lista de espera</h2>
+      <p id="waitState" style="display:none"></p>
+
+      <!-- Buscador -->
+      <div class="controls" style="gap:10px; flex-wrap:wrap; position:relative">
+        <input id="waitSearch" class="input" placeholder="Buscar equipos… (ej: notebook, cámara, proyector, Lenovo)">
+        <button id="btnWaitRefresh" class="btn btn-ghost">Actualizar</button>
+        <button id="btnVerTodo" class="btn btn-ghost">Ver todo</button>
+
+    
+      </div>
+
+      <!-- Catálogo + acciones -->
+      <div id="catalogWrap" class="mt-3">
+        <div id="catalogList" class="cat-grid"></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/listas-espera.js"></script>
+</body>
+</html>

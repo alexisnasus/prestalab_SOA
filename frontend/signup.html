@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PrestaLab · Crear cuenta</title>
+  <link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body>
+  <main class="container">
+    <section class="card">
+      <h1>Crear cuenta</h1>
+      <p>Regístrate para usar catálogo, reservas y préstamos.</p>
+
+      <form id="signupForm" class="form" autocomplete="off" novalidate>
+        <div class="field">
+          <label for="nombre">Nombre</label>
+          <input id="nombre" name="nombre" type="text" placeholder="Tu nombre" required />
+        </div>
+
+        <div class="field">
+          <label for="correo">Correo</label>
+          <input id="correo" name="correo" type="email" placeholder="tu@mail.udp.cl" required />
+        </div>
+
+        <div class="field">
+          <label for="tipo">Tipo de usuario</label>
+          <select id="tipo" name="tipo" required>
+            <option value="ESTUDIANTE" selected>ESTUDIANTE</option>
+            <option value="DOCENTE">DOCENTE</option>
+            <!--  administración: <option value="ENCARGADO">ENCARGADO</option> -->
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="telefono">Teléfono (opcional)</label>
+          <input id="telefono" name="telefono" type="tel" placeholder="+56912345678" />
+        </div>
+
+        <div class="field">
+          <label for="password">Contraseña</label>
+          <div class="password-wrap">
+            <input id="password" name="password" type="password" placeholder="mock_password" />
+            <button type="button" id="togglePwd" class="icon-btn" aria-label="Mostrar/ocultar contraseña">👁️</button>
+          </div>
+          <p class="hint" style="margin:6px 0 0 0;">En este backend de demo la contraseña válida es <code>mock_password</code>.</p>
+        </div>
+
+        <div id="signupOk" class="alert" style="display:none; border-color: rgba(34,197,94,0.35); color:#22c55e; background: rgba(34,197,94,0.08);"></div>
+        <div id="signupErr" class="alert alert-error" style="display:none;"></div>
+
+        <div class="actions">
+          <button id="btnSignup" type="submit" class="btn">Crear cuenta</button>
+          <a class="link" href="index.html">Volver a iniciar sesión</a>
+        </div>
+      </form>
+    </section>
+  </main>
+
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/signup.js"></script>
+</body>
+</html>

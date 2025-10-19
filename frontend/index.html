@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PrestaLab · Login</title>
+  <link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body>
+  <main class="container">
+    <section class="card">
+      <h1>PrestaLab · Iniciar sesión</h1>
+      <p>Accede para usar el catálogo, reservas y préstamos.</p>
+
+      <div class="status-wrap" style="margin-bottom:14px;">
+        <strong>Estado de configuración:</strong>
+        <div id="status" class="status">Verificando…</div>
+      </div>
+
+      <form id="loginForm" class="form">
+        <div class="field">
+          <label for="email">Correo</label>
+          <input id="email" name="email" type="email" placeholder="tu@correo.cl" required />
+        </div>
+
+        <div class="field">
+          <label for="password">Contraseña</label>
+          <div class="password-wrap">
+            <input id="password" name="password" type="password" placeholder="********" required />
+            <button type="button" id="togglePwd" class="icon-btn" aria-label="Mostrar/ocultar contraseña">👁️</button>
+          </div>
+        </div>
+
+        <div id="loginError" class="alert alert-error" style="display:none;"></div>
+
+        <div class="actions">
+          <button id="btnLogin" type="submit" class="btn">Ingresar</button>
+          <a class="link" href="signup.html">Crear cuenta</a>
+        </div>
+      </form>
+    </section>
+  </main>
+
+  <!-- Config + módulos -->
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/login.js"></script>
+
+  <script>
+    (function () {
+      const el = document.getElementById('status');
+      try {
+        const cfg = window.PRESTALAB || {};
+        if (cfg.BUS_BASE_URL && typeof cfg.BUS_BASE_URL === 'string') {
+          el.textContent = 'OK · BUS_BASE_URL = ' + cfg.BUS_BASE_URL;
+          el.classList.add('ok');
+          console.log('[BOOT] Config OK:', cfg);
+        } else {
+          el.textContent = 'ERROR · No se encontró window.PRESTALAB.BUS_BASE_URL';
+          el.classList.add('error');
+          console.error('[BOOT] Config inválida. Define window.PRESTALAB.BUS_BASE_URL en js/config.js');
+        }
+      } catch (e) {
+        el.textContent = 'ERROR · No se pudo leer la configuración';
+        el.classList.add('error');
+        console.error('[BOOT] Excepción leyendo config.js', e);
+      }
+    })();
+  </script>
+</body>
+</html>

@@ -273,6 +273,7 @@ docker-compose logs -f
 | POST | `/auth/login` | Autenticar usuario |
 | GET | `/usuarios/{id}` | Consultar usuario por ID |
 | PUT | `/usuarios/{id}` | Actualizar datos de usuario |
+| PUT | `/solicitudes/{id}/actualizar` | Aprobar o rechazar solicitud pendiente |
 
 ### PRART - Préstamos & Artículos (Puerto 8005)
 
@@ -280,6 +281,7 @@ docker-compose logs -f
 |--------|----------|-------------|
 | GET | `/` | Health check del servicio |
 | GET | `/items?nombre=&tipo=` | Buscar artículos del catálogo |
+| GET | `/solicitudes?usuario_id=&correo=` | Listar solicitudes de un usuario |
 | POST | `/solicitudes` | Crear solicitud de préstamo |
 | POST | `/reservas` | Crear reserva de artículo |
 | DELETE | `/reservas/{id}` | Cancelar reserva |
@@ -334,3 +336,71 @@ docker-compose logs -f
 | PUT | `/sugerencias/{id}/rechazar` | Rechazar sugerencia |
 
 ---
+
+## 🧪 Ejemplos de Uso (cURL)
+
+### REGIST - Aprobar/Rechazar Solicitudes
+
+**Aprobar una solicitud:**
+
+```bash
+# Bash/Linux/Mac
+curl -X PUT http://localhost:8006/solicitudes/1/actualizar \
+  -H "Content-Type: application/json" \
+  -d '{"estado": "APROBADA"}'
+```
+
+```powershell
+# PowerShell
+$body = @{ estado = "APROBADA" } | ConvertTo-Json
+Invoke-RestMethod -Uri "http://localhost:8006/solicitudes/1/actualizar" `
+  -Method Put `
+  -ContentType "application/json" `
+  -Body $body
+```
+
+**Rechazar una solicitud:**
+
+```bash
+# Bash/Linux/Mac
+curl -X PUT http://localhost:8006/solicitudes/2/actualizar \
+  -H "Content-Type: application/json" \
+  -d '{"estado": "RECHAZADA"}'
+```
+
+```powershell
+# PowerShell
+$body = @{ estado = "RECHAZADA" } | ConvertTo-Json
+Invoke-RestMethod -Uri "http://localhost:8006/solicitudes/2/actualizar" `
+  -Method Put `
+  -ContentType "application/json" `
+  -Body $body
+```
+
+**Respuesta exitosa (200 OK):**
+
+```json
+{
+  "message": "Solicitud 1 aprobada",
+  "solicitud_id": 1,
+  "nuevo_estado": "APROBADA"
+}
+```
+
+**Errores posibles:**
+
+- **404 Not Found**: Solicitud no existe
+- **400 Bad Request**: Solicitud no está en estado PENDIENTE
+- **422 Validation Error**: Estado debe ser "APROBADA" o "RECHAZADA"
+
+---
+
+### Comandos utiles
+
+```bash
+curl -X PUT http://localhost:8006/solicitudes/1/actualizar -H "Content-Type: application/json" -d "{\"estado\": \"APROBADA\"}"
+```
+
+```powershell
+Invoke-RestMethod -Uri "http://localhost:8006/solicitudes/1/actualizar" -Method Put -ContentType "application/json" -Body '{"estado": "APROBADA"}'
+```

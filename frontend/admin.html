@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PrestaLab · Administración</title>
+  <link rel="stylesheet" href="assets/css/styles.css" />
+  <style>
+    /* Estilos específicos para el panel de admin */
+    .admin-table { width: 100%; border-collapse: separate; border-spacing: 0 0.5rem; }
+    .admin-table th, .admin-table td { text-align: left; padding: 0.75rem 1rem; }
+    .admin-table tbody tr { background: #0d1420; border: 1px solid rgba(255,255,255,.06); border-radius: .6rem; }
+    .admin-actions select, .admin-actions button { padding: 0.3rem 0.5rem; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <header class="nav">
+    <div class="nav-left" id="main-nav">
+      <span class="brand">PrestaLab</span>
+      <a href="dashboard.html" class="nav-link">Inicio</a>
+      <a href="catalog.html" class="nav-link">Catálogo</a>
+      </div>
+    <div class="nav-right">
+      <span id="userBadge" class="badge">Cargando…</span>
+      <button id="btnLogout" class="btn btn-ghost">Cerrar sesión</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="card">
+      <h2>Panel de Administración</h2>
+      
+      <div class="tabs" style="margin: 1rem 0;">
+        <button class="tab active" data-tab="usuarios">Gestión de Usuarios</button>
+        <button class="tab" data-tab="solicitudes">Gestión de Solicitudes</button>
+        <button class="tab" data-tab="prestamos">Gestión de Préstamos</button>
+        <button class="tab" data-tab="multas">Gestión de Multas</button>
+      </div>
+
+      <div id="adminState" style="display:none;" class="alert"></div>
+      
+      <div id="tab-content-usuarios" class="tab-panel">
+        <div class="toolbar">
+          <input id="userSearch" class="input" placeholder="Buscar por nombre o correo...">
+        </div>
+        <div style="overflow-x: auto; margin-top: 1rem;">
+          <table class="admin-table">
+            <thead><tr><th>ID</th><th>Nombre</th><th>Correo</th><th>Tipo</th><th>Estado</th><th>Acciones</th></tr></thead>
+            <tbody id="userTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="tab-content-solicitudes" class="tab-panel" style="display: none;">
+        <p>Mostrando solicitudes con estado "PENDIENTE".</p>
+        <div style="overflow-x: auto; margin-top: 1rem;">
+          <table class="admin-table">
+            <thead><tr><th>ID</th><th>Usuario</th><th>Artículo</th><th>Tipo</th><th>Fecha</th><th>Acciones</th></tr></thead>
+            <tbody id="solicitudesTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="tab-content-prestamos" class="tab-panel" style="display: none;">
+        <p>Próximamente: listado de todos los préstamos activos.</p>
+        </div>
+
+      <div id="tab-content-multas" class="tab-panel" style="display: none;">
+        <p>Próximamente: listado de todas las multas y formulario para crear nuevas.</p>
+        </div>
+
+    </section>
+  </main>
+
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/admin.js"></script>
+</body>
+</html>

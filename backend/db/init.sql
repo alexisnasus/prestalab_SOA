@@ -64,6 +64,7 @@ CREATE TABLE usuario
     correo           varchar(50)  unique not null,
     tipo             varchar(20)  not null,
     telefono         varchar(15)  not null,
+    password         varchar(128) not null,
     estado           varchar(20)  not null,
     preferencias_notificacion int not null default 0,
     registro_instante datetime     not null,

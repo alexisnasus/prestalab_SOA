@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PrestaLab · Dashboard</title>
+  <link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body>
+  <!-- NAVBAR -->
+  <header class="nav">
+    <div class="nav-left">
+      <span class="brand">PrestaLab</span>
+      <a href="dashboard.html" class="nav-link active">Inicio</a>
+      <a href="catalog.html" class="nav-link">Catálogo</a>
+      <a href="mis-solicitudes.html" class="nav-link">Mis solicitudes </a>
+      <a href="mis-prestamos.html" class="nav-link">Mis préstamos</a>
+      <a href="mis-multas.html" class="nav-link">Mis multas</a>
+      <a href="listas-espera.html" class="nav-link">Lista de espera</a>
+      <a href="reportes.html" class="nav-link">Reportes</a>
+      <a href="sugerencias.html" class="nav-link">Sugerencias</a>
+      <a href="mi-perfil.html" class="nav-link">Mi Perfil</a>
+      <a href="mis-notificaciones.html" class="nav-link">Notificaciones</a>
+    </div>
+    <div class="nav-right">
+      <span id="userBadge" class="badge">Cargando…</span>
+      <button id="btnLogout" class="btn btn-ghost">Cerrar sesión</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="card">
+      <h1>Dashboard</h1>
+      <p id="hello">Cargando…</p>
+      <p id="myId" style="opacity:.9">ID de usuario: (buscando…)</p>
+    </section>
+  </main>
+
+  <script src="js/config.js"></script>
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/catalog.js"></script>
+<script>
+  (function () {
+    Auth.requireAuth();
+    const correo = Auth.getEmail();
+    document.getElementById('hello').textContent =
+      correo ? `Sesión iniciada: ${correo}` : 'Sesión iniciada';
+    document.getElementById('userBadge').textContent = correo || 'Usuario';
+
+    // Si dejaste el <p id="myId"> en el HTML, cámbialo por “identificado por correo”
+    const idEl = document.getElementById('myId');
+    if (idEl) idEl.textContent = `Identificador: ${correo || 'no disponible'}`;
+
+    document.getElementById('btnLogout').addEventListener('click', () => Auth.logout());
+  })();
+</script>
+
+</body>
+</html>

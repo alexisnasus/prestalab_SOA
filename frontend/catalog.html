@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PrestaLab · Catálogo</title>
+  <link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body>
+  <!-- NAVBAR -->
+  <header class="nav">
+    <div class="nav-left">
+      <span class="brand">PrestaLab</span>
+      <a href="dashboard.html" class="nav-link">Inicio</a>
+      <a href="catalog.html" class="nav-link active">Catálogo</a>
+      <a href="mis-solicitudes.html" class="nav-link">Mis solicitudes</a>
+      <a href="mis-prestamos.html" class="nav-link">Mis préstamos</a>
+      <a href="mis-multas.html" class="nav-link">Mis multas</a>
+      <a href="listas-espera.html" class="nav-link">Lista de espera</a>
+      <a href="reportes.html" class="nav-link">Reportes</a>
+      <a href="sugerencias.html" class="nav-link">Sugerencias</a>
+      <a href="mi-perfil.html" class="nav-link">Mi Perfil</a>
+      <a href="mis-notificaciones.html" class="nav-link">Notificaciones</a>
+    </div>
+    <div class="nav-right">
+      <span id="userBadge" class="badge">Cargando…</span>
+      <button id="btnLogout" class="btn btn-ghost">Cerrar sesión</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="card">
+      <h1>Catálogo</h1>
+      <p>Explora los artículos disponibles. Filtra por nombre o tipo.</p>
+
+      <!-- Filtros -->
+      <form id="filters" class="form" style="margin-top: 10px;">
+        <div class="field">
+          <label for="q">Buscar por nombre</label>
+          <input id="q" type="search" placeholder="Ej: Raspberry, Arduino, Kindle…" />
+        </div>
+
+        <div class="field">
+          <label for="tipo">Tipo</label>
+          <select id="tipo">
+            <option value="">Todos</option>
+            <!-- Se poblará dinámicamente con los tipos devueltos -->
+          </select>
+        </div>
+
+        <div class="actions">
+          <button class="btn" id="btnSearch" type="submit">Buscar</button>
+          <button class="btn btn-ghost" id="btnClear" type="button">Limpiar</button>
+        </div>
+      </form>
+
+      <!-- Estado de carga / error -->
+      <div id="state" class="alert" style="display:none;"></div>
+
+      <!-- Resultados -->
+      <div id="results" class="grid"></div>
+    </section>
+</section>
+
+    <div id="reserveModal" class="modal-overlay" style="display: none;">
+      <div class="modal-content">
+        <h2 id="modalTitle">Solicitar Artículo</h2>
+        <div id="modalState" class="alert" style="display:none; margin-bottom: 1rem;"></div>
+
+        <form id="modalForm">
+          <input type="hidden" id="modalItemId">
+          
+          <div class="field">
+            <label>Tipo de Solicitud</label>
+            <div class="radio-group">
+              <label><input type="radio" name="requestType" value="PRESTAMO" checked> Solicitud de Préstamo (retirar lo antes posible)</label>
+              <label><input type="radio" name="requestType" value="VENTANA"> Reservar para un período específico</label>
+            </div>
+          </div>
+
+          <div id="dateFields" style="display: none; margin-top: 1rem; display: grid; gap: 0.75rem;">
+            <div class="field">
+              <label for="reserveInicio">Inicio de la reserva</label>
+              <input id="reserveInicio" class="input" type="datetime-local" />
+            </div>
+            <div class="field">
+              <label for="reserveFin">Fin de la reserva</label>
+              <input id="reserveFin" class="input" type="datetime-local" />
+            </div>
+          </div>
+
+          <div class="actions" style="margin-top: 1.5rem;">
+            <button id="btnConfirmRequest" type="submit" class="btn">Confirmar</button>
+            <button id="btnCancelRequest" type="button" class="btn btn-ghost">Cancelar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    </main>
+
+  <script src="js/config.js"></script>
+
+  <script src="js/config.js"></script>
+  </main>
+
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/catalog.js"></script>
+  <script>
+    (function () {
+      window.Auth.requireAuth();
+      const u = window.Auth.getUser();
+      document.getElementById('userBadge').textContent = u?.correo || 'Usuario';
+      document.getElementById('btnLogout').addEventListener('click', () => window.Auth.logout());
+    })();
+  </script>
+</body>
+</html>

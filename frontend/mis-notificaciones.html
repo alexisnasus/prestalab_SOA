@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PrestaLab · Mis Notificaciones</title>
+  <link rel="stylesheet" href="assets/css/styles.css" />
+  <style>
+    .notification-list { list-style: none; padding: 0; margin-top: 1rem; display: grid; gap: 0.75rem; }
+    .notification-item { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 1rem; }
+    .notification-item small { opacity: 0.7; }
+  </style>
+</head>
+<body>
+  <header class="nav">
+    <div class="nav-left">
+      <span class="brand">PrestaLab</span>
+      <a href="dashboard.html" class="nav-link">Inicio</a>
+      <a href="catalog.html" class="nav-link active">Catálogo</a>
+      <a href="mis-solicitudes.html" class="nav-link">Mis solicitudes</a>
+      <a href="mis-prestamos.html" class="nav-link">Mis préstamos</a>
+      <a href="mis-multas.html" class="nav-link">Mis multas</a>
+      <a href="listas-espera.html" class="nav-link">Lista de espera</a>
+      <a href="reportes.html" class="nav-link">Reportes</a>
+      <a href="sugerencias.html" class="nav-link">Sugerencias</a>
+      <a href="mi-perfil.html" class="nav-link">Mi Perfil</a>
+      <a href="mis-notificaciones.html" class="nav-link active">Notificaciones</a>
+    </div>
+    <div class="nav-right">
+      <span id="userBadge" class="badge">Cargando…</span>
+      <button id="btnLogout" class="btn btn-ghost">Cerrar sesión</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="card">
+      <h1>Mis Notificaciones</h1>
+      <p>Aquí encontrarás todos los avisos y recordatorios del sistema.</p>
+      <div id="notifState" style="display:none;"></div>
+      <ul id="notificationList" class="notification-list">
+        </ul>
+    </section>
+  </main>
+
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/mis-notificaciones.js"></script>
+</body>
+</html>

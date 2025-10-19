@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PrestaLab · Reportes & Historial</title>
+  <link rel="stylesheet" href="assets/css/styles.css" />
+  <style>
+    .tabs{display:flex;gap:.5rem;flex-wrap:wrap}
+    .tab{padding:.4rem .8rem;border-radius:.5rem;border:1px solid rgba(255,255,255,.12);cursor:pointer;background:#0f172a}
+    .tab.active{background:#111827;border-color:rgba(99,102,241,.45)}
+    .toolbar{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
+    .table{width:100%;border-collapse:separate;border-spacing:0 .5rem}
+    .tr{background:#0d1420;border:1px solid rgba(255,255,255,.06);border-radius:.6rem}
+    .td{padding:.55rem .75rem}
+    .td:first-child{border-top-left-radius:.6rem;border-bottom-left-radius:.6rem}
+    .td:last-child{border-top-right-radius:.6rem;border-bottom-right-radius:.6rem}
+    .muted{opacity:.8}
+    .btn-xs{padding:.25rem .5rem;font-size:.9rem;border-radius:.4rem}
+  </style>
+</head>
+<body>
+  <header class="nav">
+    <div class="nav-left">
+      <span class="brand">PrestaLab</span>
+      <a href="dashboard.html" class="nav-link">Inicio</a>
+      <a href="catalog.html" class="nav-link">Catálogo</a>
+      <a href="mis-solicitudes.html" class="nav-link">Mis solicitudes</a>
+      <a href="mis-prestamos.html" class="nav-link">Mis préstamos</a>
+      <a href="mis-multas.html" class="nav-link">Mis multas</a>
+      <a href="listas-espera.html" class="nav-link">Lista de espera</a>
+      <a href="reportes.html" class="nav-link active">Reportes</a>
+      <a href="sugerencias.html" class="nav-link">Sugerencias</a>
+      <a href="mi-perfil.html" class="nav-link">Mi Perfil</a>
+      <a href="mis-notificaciones.html" class="nav-link">Notificaciones</a>
+    </div>
+    <div class="nav-right">
+      <span id="userBadge" class="badge">Cargando…</span>
+      <button id="btnLogout" class="btn btn-ghost">Cerrar sesión</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="card">
+      <h2>Reportes & Historial</h2>
+      <div class="tabs" style="margin:.25rem 0 1rem">
+        <button class="tab active" data-tab="hist">Historial por usuario</button>
+        <button class="tab" data-tab="circ">Circulación por sede</button>
+      </div>
+      <p id="repState" style="display:none"></p>
+
+      <!-- TAB: HISTORIAL -->
+      <div id="tab-hist">
+        <div class="toolbar">
+          <input id="histUserId" class="input" placeholder="ID de usuario" style="width:200px">
+          <button id="btnHistMy" class="btn btn-ghost">Usar mi cuenta</button>
+          <input id="histFilter" class="input" placeholder="Filtrar (artículo, estado, fecha…)" style="min-width:280px">
+          <button id="btnHistBuscar" class="btn">Buscar</button>
+          <button id="btnHistCSV" class="btn btn-ghost">Descargar CSV</button>
+          <button id="btnHistPDF" class="btn btn-ghost">Descargar PDF</button>
+        </div>
+
+        <div class="mt-3">
+          <table class="table">
+            <thead>
+              <tr class="tr" style="background:transparent;border:0">
+                <th class="td">#</th>
+                <th class="td">Artículo / Ítem</th>
+                <th class="td">Desde</th>
+                <th class="td">Hasta</th>
+                <th class="td">Estado</th>
+              </tr>
+            </thead>
+            <tbody id="histTable"></tbody>
+          </table>
+          <div id="histPager" class="muted" style="margin-top:.5rem"></div>
+        </div>
+      </div>
+
+      <!-- TAB: CIRCULACIÓN -->
+      <div id="tab-circ" style="display:none">
+        <div class="toolbar">
+          <input id="circPeriodo" class="input" type="month">
+          <select id="circSede" class="input" style="min-width:200px"></select>
+          <button id="btnCircConsultar" class="btn">Consultar</button>
+        </div>
+
+        <div class="mt-3">
+          <table class="table">
+            <thead>
+              <tr class="tr" style="background:transparent;border:0">
+                <th class="td">Categoría</th>
+                <th class="td">Préstamos</th>
+                <th class="td">Usuarios únicos</th>
+                <th class="td">Rotación</th>
+              </tr>
+            </thead>
+            <tbody id="circTable"></tbody>
+          </table>
+          <div id="circNote" class="muted" style="margin-top:.5rem"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/reportes.js"></script>
+</body>
+</html>

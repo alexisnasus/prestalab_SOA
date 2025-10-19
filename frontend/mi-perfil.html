@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PrestaLab · Mi Perfil</title>
+  <link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body>
+  <header class="nav">
+    <div class="nav-left">
+      <span class="brand">PrestaLab</span>
+      <a href="dashboard.html" class="nav-link">Inicio</a>
+      <a href="catalog.html" class="nav-link">Catálogo</a>
+      <a href="mis-solicitudes.html" class="nav-link">Mis solicitudes</a>
+      <a href="mis-prestamos.html" class="nav-link">Mis préstamos</a>
+      <a href="mis-multas.html" class="nav-link">Mis multas</a>
+      <a href="listas-espera.html" class="nav-link">Lista de espera</a>
+      <a href="reportes.html" class="nav-link">Reportes</a>
+      <a href="sugerencias.html" class="nav-link">Sugerencias</a>
+      <a href="mi-perfil.html" class="nav-link active">Mi Perfil</a>
+      <a href="mis-notificaciones.html" class="nav-link">Notificaciones</a>
+    </div>
+    <div class="nav-right">
+      <span id="userBadge" class="badge">Cargando…</span>
+      <button id="btnLogout" class="btn btn-ghost">Cerrar sesión</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="card">
+      <h1>Mi Perfil</h1>
+      <p>Actualiza tu información personal.</p>
+
+      <div id="profileState" style="display:none;"></div>
+
+      <form id="profileForm" class="form" style="margin-top: 1rem;">
+        <div class="field">
+          <label for="profileCorreo">Correo</label>
+          <input id="profileCorreo" class="input" type="email" disabled style="opacity: 0.7;" />
+          <p class="hint" style="margin: 4px 0 0; padding: 0; border: 0;">El correo no se puede cambiar.</p>
+        </div>
+
+        <div class="field">
+          <label for="profileNombre">Nombre</label>
+          <input id="profileNombre" class="input" type="text" required />
+        </div>
+
+        <div class="field">
+          <label for="profileTelefono">Teléfono</label>
+          <input id="profileTelefono" class="input" type="tel" placeholder="+56912345678" />
+        </div>
+        
+      <div class="field">
+          <label>Preferencias de Notificación</label>
+          <div class="radio-group" id="notifPrefs">
+            <label><input type="radio" name="notifPref" value="1"> Portal</label>
+            <label><input type="radio" name="notifPref" value="2"> WhatsApp (no disponible)</label>
+            <label><input type="radio" name="notifPref" value="3"> Email (no disponible)</label>
+          </div>
+        </div>
+        <div class="actions">
+          <button id="btnUpdateProfile" type="submit" class="btn">Guardar Cambios</button>
+        </div>
+      </form>
+    </section>
+  </main>
+
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/mi-perfil.js"></script>
+</body>
+</html>
