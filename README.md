@@ -323,7 +323,7 @@ docker-compose logs -f
 |--------|----------|-------------|
 | GET | `/` | Health check del servicio |
 | GET | `/usuarios/{id}/historial?formato=json\|csv\|pdf` | Historial de préstamos de usuario |
-| GET | `/reportes/circulacion?periodo=YYYY-MM&sede=id` | Métricas de circulación por sede |
+| GET | `/reportes/circulacion?periodo=YYYY-MM&sede_id=id` | Métricas de circulación por sede |
 
 ### SUGIT - Sugerencias (Puerto 8007)
 

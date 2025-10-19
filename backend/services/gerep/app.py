@@ -1,26 +1,22 @@
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Depends
 from fastapi.responses import JSONResponse, StreamingResponse
-from sqlalchemy import create_engine, text
+from sqlalchemy.orm import Session
+from sqlalchemy import func
 from reportlab.pdfgen import canvas
 import os
 import io
 import csv
 import sys
-sys.path.append('/app')  # Para importar bus_client desde el contenedor
+from datetime import datetime, timedelta
+
+sys.path.append('/app')
 from bus_client import register_service
 from service_logger import create_service_logger
+from models import Prestamo, Solicitud, ItemExistencia, Item, Sede, get_db, engine
 
 app = FastAPI(title="Servicio de Gestión de Reportes")
 
-DATABASE_URL = os.getenv("DATABASE_URL")
-engine = create_engine(DATABASE_URL, echo=True, future=True)
-
-# Crear logger para este servicio
 logger = create_service_logger("gerep")
-
-# ============================================================================
-# REGISTRO EN EL BUS (SOA)
-# ============================================================================
 
 @app.on_event("startup")
 async def startup():
@@ -37,32 +33,32 @@ async def startup():
     
     logger.registered(os.getenv("BUS_URL", "http://bus:8000"))
 
-# ============================================================================
-# ENDPOINTS
-# ============================================================================
-
 @app.get("/")
 def root():
     return {"message": "El Servicio de Gestión de Reportes está activo"}
 
-# GET /usuarios/{id}/historial?formato=pdf|csv
 @app.get("/usuarios/{usuario_id}/historial")
-def historial_usuario(usuario_id: int, formato: str = "json"):
+def historial_usuario(usuario_id: int, formato: str = "json", db: Session = Depends(get_db)):
     logger.request_received("GET", f"/usuarios/{usuario_id}/historial", {"formato": formato})
 
-    with engine.connect() as conn:
-        query = text("""
-            SELECT p.id, p.fecha_prestamo, p.fecha_devolucion, p.estado,
-                   i.nombre as item, i.tipo
-            FROM prestamo p
-            JOIN solicitud s ON p.solicitud_id = s.id
-            JOIN item_existencia ie ON p.item_existencia_id = ie.id
-            JOIN item i ON ie.item_id = i.id
-            WHERE s.usuario_id = :usuario_id
-            ORDER BY p.fecha_prestamo DESC
-        """)
-        logger.db_query(str(query), {"usuario_id": usuario_id})
-        rows = conn.execute(query, {"usuario_id": usuario_id}).fetchall()
+    query = (
+        db.query(
+            Prestamo.id,
+            Prestamo.fecha_prestamo,
+            Prestamo.fecha_devolucion,
+            Prestamo.estado,
+            Item.nombre.label("item"),
+            Item.tipo
+        )
+        .join(Solicitud, Prestamo.solicitud_id == Solicitud.id)
+        .join(ItemExistencia, Prestamo.item_existencia_id == ItemExistencia.id)
+        .join(Item, ItemExistencia.item_id == Item.id)
+        .filter(Solicitud.usuario_id == usuario_id)
+        .order_by(Prestamo.fecha_prestamo.desc())
+    )
+    
+    logger.db_query(str(query.statement.compile(engine)), {"usuario_id": usuario_id})
+    rows = query.all()
 
     historial = [
         {
@@ -74,6 +70,9 @@ def historial_usuario(usuario_id: int, formato: str = "json"):
             "tipo": r.tipo
         } for r in rows
     ]
+
+    if not historial and formato != 'json':
+        raise HTTPException(status_code=404, detail="No se encontró historial para este usuario.")
 
     if formato == "json":
         logger.response_sent(200, f"Historial en JSON", f"Usuario: {usuario_id}, Registros: {len(historial)}")
@@ -114,59 +113,64 @@ def historial_usuario(usuario_id: int, formato: str = "json"):
         logger.response_sent(400, "Formato no soportado")
         raise HTTPException(status_code=400, detail="Formato no soportado")
 
-# GET /reportes/circulacion?periodo&=...&sede=...
 @app.get("/reportes/circulacion")
 def reportes_circulacion(
     periodo: str = Query(..., description="Periodo en formato YYYY-MM"),
-    sede: int = Query(..., description="ID de la sede")
+    sede_id: int = Query(..., description="ID de la sede"),
+    db: Session = Depends(get_db)
 ):
-    """
-    Retorna métricas de:
-    - Rotación (cantidad de préstamos realizados en el periodo por sede)
-    - Morosidad (porcentaje de préstamos vencidos/no devueltos a tiempo)
-    - Daños (cantidad de items dañados reportados en item_existencia)
-    """
+    logger.request_received("GET", "/reportes/circulacion", {"periodo": periodo, "sede_id": sede_id})
+    
+    try:
+        inicio = datetime.strptime(f"{periodo}-01", "%Y-%m-%d")
+        fin_mes = (inicio.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+        fin = fin_mes
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Formato de período inválido. Use YYYY-MM.")
 
-    with engine.connect() as conn:
-        # Calcular fechas del periodo
-        inicio = f"{periodo}-01"
-        fin = f"{periodo}-31"
+    # Rotación
+    rotacion = (
+        db.query(func.count(Prestamo.id))
+        .join(ItemExistencia)
+        .filter(ItemExistencia.sede_id == sede_id, Prestamo.fecha_prestamo.between(inicio, fin))
+        .scalar()
+    )
 
-        # Rotación: cantidad de préstamos
-        rotacion = conn.execute(text("""
-            SELECT COUNT(*) as total
-            FROM prestamo p
-            JOIN item_existencia ie ON p.item_existencia_id = ie.id
-            WHERE ie.sede_id = :sede
-              AND p.fecha_prestamo BETWEEN :inicio AND :fin
-        """), {"sede": sede, "inicio": inicio, "fin": fin}).scalar()
+    # Morosidad
+    morosos = (
+        db.query(func.count(Prestamo.id))
+        .join(ItemExistencia)
+        .filter(
+            ItemExistencia.sede_id == sede_id,
+            Prestamo.estado == 'VENCIDO',
+            Prestamo.fecha_prestamo.between(inicio, fin)
+        )
+        .scalar()
+    )
+    
+    total_prestamos = rotacion if rotacion > 0 else 1
+    morosidad_porcentaje = (morosos / total_prestamos) * 100
 
-        # Morosidad: % de préstamos vencidos
-        morosos = conn.execute(text("""
-            SELECT COUNT(*) 
-            FROM prestamo p
-            JOIN item_existencia ie ON p.item_existencia_id = ie.id
-            WHERE ie.sede_id = :sede
-              AND p.estado = 'VENCIDO'
-              AND p.fecha_prestamo BETWEEN :inicio AND :fin
-        """), {"sede": sede, "inicio": inicio, "fin": fin}).scalar()
+    # Daños
+    danos = (
+        db.query(func.count(ItemExistencia.id))
+        .filter(
+            ItemExistencia.sede_id == sede_id,
+            ItemExistencia.estado == 'DANNADO',
+            ItemExistencia.registro_instante.between(inicio, fin)
+        )
+        .scalar()
+    )
 
-        total_prestamos = rotacion if rotacion > 0 else 1
-        morosidad = (morosos / total_prestamos) * 100
-
-        # Daños: items dañados
-        danos = conn.execute(text("""
-            SELECT COUNT(*)
-            FROM item_existencia
-            WHERE sede_id = :sede
-              AND estado = 'DANNADO'
-              AND registro_instante BETWEEN :inicio AND :fin
-        """), {"sede": sede, "inicio": inicio, "fin": fin}).scalar()
-
-    return {
-        "sede": sede,
+    response_data = {
+        "sede_id": sede_id,
         "periodo": periodo,
-        "rotacion": rotacion,
-        "morosidad_porcentaje": round(morosidad, 2),
-        "danos": danos
+        "metricas": {
+            "rotacion_total": rotacion,
+            "morosidad_porcentaje": round(morosidad_porcentaje, 2),
+            "danos_reportados": danos
+        }
     }
+    
+    logger.response_sent(200, "Reporte de circulación generado", response_data)
+    return response_data
