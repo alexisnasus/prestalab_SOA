@@ -4,6 +4,8 @@ WORKDIR /app
 
 # Copiar archivos necesarios
 COPY ./services/sugit/app.py /app
+COPY ./services/sugit/models.py /app
+COPY ./services/sugit/requirements.txt /app/requirements.txt
 COPY ./bus_client.py /app/bus_client.py
 COPY ./service_logger.py /app/service_logger.py
 
@@ -17,6 +19,7 @@ RUN apt-get update && apt-get install -y \
 
 # Actualizar pip y luego instalar dependencias de Python
 RUN pip install --upgrade pip
-RUN pip install fastapi uvicorn sqlalchemy pymysql cryptography httpx colorama
+RUN pip install -r requirements.txt
+RUN pip install httpx colorama cryptography
 
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -1,0 +1,8 @@
+fastapi==0.104.1
+uvicorn==0.24.0
+sqlalchemy==2.0.23
+pymysql==1.1.0
+reportlab==4.0.7
+httpx==0.25.1
+colorama==0.4.6
+sqlalchemy-utils==0.41.1
