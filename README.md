@@ -305,7 +305,7 @@ docker-compose logs -f
 |--------|----------|-------------|
 | GET | `/` | Health check del servicio |
 | POST | `/lista-espera` | Agregar usuario a lista de espera |
-| PUT | `/lista-espera/{id}` | Actualizar estado (ATENDIDA/CANCELADA) |
+| PUT | `/lista-espera/{id}` | Actualizar estado (ATENDIDA/CANCELADA). Body: `{"estado": "ATENDIDA"}` |
 | GET | `/lista-espera/{item_id}` | Consultar lista de espera por artículo |
 
 ### NOTIS - Notificaciones (Puerto 8004)
