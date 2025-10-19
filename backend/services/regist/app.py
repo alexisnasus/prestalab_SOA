@@ -1,5 +1,5 @@
-from fastapi import FastAPI, HTTPException, Body, status
-from sqlalchemy import create_engine, text
+from fastapi import FastAPI, HTTPException, Body, status, Depends
+from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
@@ -8,11 +8,9 @@ import sys
 sys.path.append('/app')  # Para importar bus_client desde el contenedor
 from bus_client import register_service
 from service_logger import create_service_logger
+from models import Usuario, Solicitud, get_db
 
 app = FastAPI(title="Servicio de Gestión de Usuarios")
-
-DATABASE_URL = os.getenv("DATABASE_URL")
-engine = create_engine(DATABASE_URL, echo=True, future=True)
 
 # Crear logger para este servicio
 logger = create_service_logger("regist")
@@ -62,150 +60,117 @@ class LoginRequest(BaseModel):
 
 # Registrar usuario
 @app.post("/usuarios", status_code=status.HTTP_201_CREATED)
-def registrar_usuario(usuario: UsuarioCreate = Body(...)):
+def registrar_usuario(usuario: UsuarioCreate = Body(...), db: Session = Depends(get_db)):
     data = usuario.dict()
     logger.request_received("POST", "/usuarios", {**data, "password": "***"})
 
-    columns = []
-    values = []
-    params = {}
-
-    if data.get("id") is not None:
-        columns.append("id")
-        values.append(":id")
-        params["id"] = data["id"]
-
-    columns.extend([
-        "nombre",
-        "correo",
-        "tipo",
-        "telefono",
-        "password",
-        "estado",
-        "preferencias_notificacion",
-    ])
-
-    params.update({
-        "nombre": data["nombre"],
-        "correo": data["correo"].lower(),
-        "tipo": data["tipo"],
-        "telefono": data.get("telefono", ""),
-        "password": data["password"],
-        "estado": data.get("estado", "ACTIVO"),
-        "preferencias_notificacion": data.get("preferencias_notificacion", 1),
-    })
-
-    values.extend([
-        ":nombre",
-        ":correo",
-        ":tipo",
-        ":telefono",
-        ":password",
-        ":estado",
-        ":preferencias_notificacion",
-    ])
-
-    columns.append("registro_instante")
-    values.append("NOW()")
-
-    query = text(
-        f"INSERT INTO usuario ({', '.join(columns)}) VALUES ({', '.join(values)})"
-    )
-
-    logger.db_query(str(query), {**params, "password": "***"})
-
     try:
-        with engine.begin() as conn:
-            result = conn.execute(query, params)
-            new_id = result.lastrowid if result.lastrowid else params.get("id")
-
-            fetch_query = text(
-                """
-                SELECT id, nombre, correo, tipo, telefono, estado, preferencias_notificacion, registro_instante
-                FROM usuario
-                WHERE id = :id
-                """
-            )
-
-            new_user = conn.execute(fetch_query, {"id": new_id}).mappings().first()
-
-            response_data = {
-                "message": "Usuario registrado",
-                "user": dict(new_user) if new_user else {"id": new_id},
-            }
-
-            logger.response_sent(201, "Usuario registrado exitosamente", f"ID: {new_id}")
-            return response_data
+        # Crear instancia del modelo Usuario
+        nuevo_usuario = Usuario(
+            nombre=data["nombre"],
+            correo=data["correo"].lower(),
+            tipo=data["tipo"],
+            telefono=data.get("telefono", ""),
+            password=data["password"],
+            estado=data.get("estado", "ACTIVO"),
+            preferencias_notificacion=data.get("preferencias_notificacion", 1)
+        )
+        
+        # Si se proporciona un ID específico, establecerlo
+        if data.get("id") is not None:
+            nuevo_usuario.id = data["id"]
+        
+        db.add(nuevo_usuario)
+        db.commit()
+        db.refresh(nuevo_usuario)
+        
+        response_data = {
+            "message": "Usuario registrado",
+            "user": nuevo_usuario.to_dict(),
+        }
+        
+        logger.response_sent(201, "Usuario registrado exitosamente", f"ID: {nuevo_usuario.id}")
+        return response_data
+        
     except IntegrityError as exc:
+        db.rollback()
         logger.error("Correo duplicado", str(exc.orig))
         raise HTTPException(status_code=409, detail="El correo ya está registrado")
     except SQLAlchemyError as exc:
+        db.rollback()
         logger.error("Error registrando usuario", str(exc))
         raise HTTPException(status_code=500, detail="Error al registrar usuario")
 
 # Login usuario
 @app.post("/auth/login")
-def login(auth: LoginRequest = Body(...)):
+def login(auth: LoginRequest = Body(...), db: Session = Depends(get_db)):
     payload = auth.dict()
     correo = payload["correo"].lower()
     logger.request_received("POST", "/auth/login", {"correo": correo})
 
-    query = text("SELECT * FROM usuario WHERE correo = :correo")
-    logger.db_query(str(query), {"correo": correo})
+    # Buscar usuario por correo usando ORM
+    user = db.query(Usuario).filter(Usuario.correo == correo).first()
+    
+    if not user or user.password != payload["password"]:
+        logger.response_sent(401, "Credenciales inválidas")
+        raise HTTPException(status_code=401, detail="Credenciales inválidas")
 
-    with engine.begin() as conn:
-        user = conn.execute(query, {"correo": correo}).mappings().first()
-        if not user or user.get("password") != payload["password"]:
-            logger.response_sent(401, "Credenciales inválidas")
-            raise HTTPException(status_code=401, detail="Credenciales inválidas")
+    user_data = user.to_dict()
+    token = f"session-{user_data['id']}"
 
-        user_data = dict(user)
-        user_data.pop("password", None)
-        token = f"session-{user_data['id']}"
+    response_data = {
+        "message": f"Usuario {correo} autenticado",
+        "token": token,
+        "user": user_data,
+    }
 
-        response_data = {
-            "message": f"Usuario {correo} autenticado",
-            "token": token,
-            "user": user_data,
-        }
-
-        logger.response_sent(200, "Autenticación exitosa", f"Usuario: {correo}")
-        return response_data
+    logger.response_sent(200, "Autenticación exitosa", f"Usuario: {correo}")
+    return response_data
 
 # Retrieve usuario
 @app.get("/usuarios/{id}")
-def consultar_usuario(id: int):
+def consultar_usuario(id: int, db: Session = Depends(get_db)):
     logger.request_received("GET", f"/usuarios/{id}")
     
-    query = text("SELECT * FROM usuario WHERE id = :id")
-    logger.db_query(str(query), {"id": id})
+    # Buscar usuario por ID usando ORM
+    user = db.query(Usuario).filter(Usuario.id == id).first()
     
-    with engine.begin() as conn:
-        user = conn.execute(query, {"id": id}).mappings().first()
-        if not user:
-            logger.response_sent(404, "Usuario no encontrado")
-            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    if not user:
+        logger.response_sent(404, "Usuario no encontrado")
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
-        response_data = dict(user)
-        response_data.pop("password", None)
-        logger.response_sent(200, "Usuario encontrado", f"ID: {id}")
-        return response_data
+    response_data = user.to_dict()
+    logger.response_sent(200, "Usuario encontrado", f"ID: {id}")
+    return response_data
 
 # Update usuario
 @app.put("/usuarios/{id}")
-def actualizar_usuario(id: int, datos: dict = Body(...)):
+def actualizar_usuario(id: int, datos: dict = Body(...), db: Session = Depends(get_db)):
     logger.request_received("PUT", f"/usuarios/{id}", datos)
     
-    sets = ", ".join([f"{k} = :{k}" for k in datos.keys()])
-    query = text(f"UPDATE usuario SET {sets} WHERE id = :id")
-    datos["id"] = id
+    # Buscar usuario por ID usando ORM
+    user = db.query(Usuario).filter(Usuario.id == id).first()
     
-    logger.db_query(f"UPDATE usuario SET {sets} WHERE id = :id", datos)
+    if not user:
+        logger.response_sent(404, "Usuario no encontrado")
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
     
-    with engine.begin() as conn:
-        conn.execute(query, datos)
+    # Actualizar solo los campos proporcionados
+    try:
+        for key, value in datos.items():
+            if hasattr(user, key):
+                setattr(user, key, value)
+        
+        db.commit()
+        db.refresh(user)
+        
         logger.response_sent(200, f"Usuario {id} actualizado")
         return {"message": f"Usuario {id} actualizado"}
+        
+    except SQLAlchemyError as exc:
+        db.rollback()
+        logger.error("Error actualizando usuario", str(exc))
+        raise HTTPException(status_code=500, detail="Error al actualizar usuario")
 
 
 class SolicitudActualizacion(BaseModel):
@@ -214,32 +179,28 @@ class SolicitudActualizacion(BaseModel):
 
 # Aprobar o rechazar solicitud
 @app.put("/solicitudes/{solicitud_id}/actualizar")
-def actualizar_solicitud(solicitud_id: int, actualizacion: SolicitudActualizacion = Body(...)):
+def actualizar_solicitud(solicitud_id: int, actualizacion: SolicitudActualizacion = Body(...), db: Session = Depends(get_db)):
     logger.request_received("PUT", f"/solicitudes/{solicitud_id}/actualizar", actualizacion.dict())
     
-    # Primero verificar que la solicitud existe y está en estado PENDIENTE
-    check_query = text("SELECT id, estado FROM solicitud WHERE id = :id")
-    logger.db_query(str(check_query), {"id": solicitud_id})
+    # Buscar la solicitud por ID usando ORM
+    solicitud = db.query(Solicitud).filter(Solicitud.id == solicitud_id).first()
     
-    with engine.begin() as conn:
-        solicitud = conn.execute(check_query, {"id": solicitud_id}).mappings().first()
-        
-        if not solicitud:
-            logger.response_sent(404, "Solicitud no encontrada")
-            raise HTTPException(status_code=404, detail="Solicitud no encontrada")
-        
-        if solicitud["estado"] != "PENDIENTE":
-            logger.response_sent(400, f"Solicitud no está en estado PENDIENTE, estado actual: {solicitud['estado']}")
-            raise HTTPException(
-                status_code=400,
-                detail=f"La solicitud no está en estado PENDIENTE. Estado actual: {solicitud['estado']}"
-            )
-        
-        # Actualizar el estado de la solicitud
-        update_query = text("UPDATE solicitud SET estado = :estado WHERE id = :id")
-        logger.db_query(str(update_query), {"estado": actualizacion.estado, "id": solicitud_id})
-        
-        conn.execute(update_query, {"estado": actualizacion.estado, "id": solicitud_id})
+    if not solicitud:
+        logger.response_sent(404, "Solicitud no encontrada")
+        raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+    
+    if solicitud.estado != "PENDIENTE":
+        logger.response_sent(400, f"Solicitud no está en estado PENDIENTE, estado actual: {solicitud.estado}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"La solicitud no está en estado PENDIENTE. Estado actual: {solicitud.estado}"
+        )
+    
+    # Actualizar el estado de la solicitud
+    try:
+        solicitud.estado = actualizacion.estado
+        db.commit()
+        db.refresh(solicitud)
         
         response_data = {
             "message": f"Solicitud {solicitud_id} {actualizacion.estado.lower()}",
@@ -249,3 +210,8 @@ def actualizar_solicitud(solicitud_id: int, actualizacion: SolicitudActualizacio
         
         logger.response_sent(200, f"Solicitud {solicitud_id} actualizada a {actualizacion.estado}")
         return response_data
+        
+    except SQLAlchemyError as exc:
+        db.rollback()
+        logger.error("Error actualizando solicitud", str(exc))
+        raise HTTPException(status_code=500, detail="Error al actualizar solicitud")
