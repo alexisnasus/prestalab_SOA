@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, Query, Path, Body, status
+from fastapi.responses import JSONResponse
 from sqlalchemy import create_engine, text, bindparam
 from sqlalchemy.exc import SQLAlchemyError
 import os
@@ -168,9 +169,20 @@ def obtener_solicitudes_usuario(
 
             solicitudes_query = text(
                 """
-                SELECT s.id, s.usuario_id, s.tipo, s.estado, s.registro_instante
+                SELECT 
+                    s.id, s.usuario_id, s.tipo, s.estado, s.registro_instante,
+                    COALESCE(i.nombre, i_prestamo.nombre, i_ventana.nombre) AS nombre_articulo
                 FROM solicitud s
+                LEFT JOIN item_solicitud si ON s.id = si.solicitud_id
+                LEFT JOIN item i ON si.item_id = i.id
+                LEFT JOIN prestamo p ON s.id = p.solicitud_id
+                LEFT JOIN item_existencia ie_prestamo ON p.item_existencia_id = ie_prestamo.id
+                LEFT JOIN item i_prestamo ON ie_prestamo.item_id = i_prestamo.id
+                LEFT JOIN ventana v ON s.id = v.solicitud_id
+                LEFT JOIN item_existencia ie_ventana ON v.item_existencia_id = ie_ventana.id
+                LEFT JOIN item i_ventana ON ie_ventana.item_id = i_ventana.id
                 WHERE s.usuario_id = :usuario_id
+                GROUP BY s.id
                 ORDER BY s.registro_instante DESC
                 """
             )
@@ -178,42 +190,19 @@ def obtener_solicitudes_usuario(
             solicitudes_rows = conn.execute(solicitudes_query, {"usuario_id": resolved_user_id}).mappings().all()
 
             solicitudes = []
-            solicitud_ids = []
             for row in solicitudes_rows:
                 solicitud = dict(row)
                 registro = solicitud.get("registro_instante")
                 if isinstance(registro, datetime):
                     solicitud["registro_instante"] = registro.isoformat()
+                
+                # El nombre del artículo ahora viene en la consulta principal
+                nombre_articulo = solicitud.pop("nombre_articulo", None)
                 solicitud["items"] = []
+                if nombre_articulo:
+                    solicitud["items"].append({"nombre": nombre_articulo})
+                
                 solicitudes.append(solicitud)
-                solicitud_ids.append(solicitud["id"])
-
-            if solicitud_ids:
-                items_query = text(
-                    """
-                    SELECT isolicitud.solicitud_id, isolicitud.item_id, isolicitud.cantidad,
-                           i.nombre, i.tipo
-                    FROM item_solicitud AS isolicitud
-                    JOIN item i ON i.id = isolicitud.item_id
-                    WHERE isolicitud.solicitud_id IN :solicitudes
-                    ORDER BY i.nombre ASC
-                    """
-                ).bindparams(bindparam("solicitudes", expanding=True))
-
-                logger.db_query(str(items_query), {"solicitudes": solicitud_ids})
-                items_rows = conn.execute(items_query, {"solicitudes": solicitud_ids}).mappings().all()
-
-                items_por_solicitud = {}
-                for item in items_rows:
-                    items_por_solicitud.setdefault(item["solicitud_id"], []).append({
-                        "item_id": item["item_id"],
-                        "nombre": item["nombre"],
-                        "tipo": item["tipo"],
-                        "cantidad": item["cantidad"]
-                    })
-
-                for solicitud in solicitudes:
-                    solicitud["items"] = items_por_solicitud.get(solicitud["id"], [])
 
         respuesta = {
             "usuario_id": resolved_user_id,
@@ -221,7 +210,7 @@ def obtener_solicitudes_usuario(
             "solicitudes": solicitudes
         }
         logger.response_sent(200, "Solicitudes obtenidas", f"Total: {len(solicitudes)}")
-        return respuesta
+        return JSONResponse(content=respuesta)
 
     except HTTPException:
         raise
@@ -240,7 +229,7 @@ def crear_solicitud(datos: SolicitudCreate = Body(...)):
         usuario_id = datos.usuario_id
         correo = datos.correo.strip().lower() if datos.correo else None
 
-        if usuario_id is None and not correo:
+        if usuario_id is None and correo is None:
             raise HTTPException(status_code=422, detail="Debe proporcionar 'usuario_id' o 'correo'")
 
         if usuario_id is not None and correo is not None:
