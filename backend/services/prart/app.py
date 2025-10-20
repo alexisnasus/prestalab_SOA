@@ -70,6 +70,18 @@ async def startup():
 def root():
     return {"message": "Servicio PRART disponible"}
 
+@app.get("/items/all", status_code=status.HTTP_200_OK)
+def obtener_todos_los_items(db: Session = Depends(get_db)):
+    """Obtiene todos los artículos del catálogo sin filtros"""
+    logger.request_received("GET", "/items/all", {})
+    try:
+        items = db.query(Item).order_by(Item.nombre).all()
+        logger.response_sent(200, "Todos los items obtenidos", f"Total: {len(items)}")
+        return items
+    except SQLAlchemyError as e:
+        logger.error("SQLAlchemyError", str(e))
+        raise HTTPException(status_code=500, detail="Error al obtener items.")
+
 @app.get("/items", status_code=status.HTTP_200_OK)
 def buscar_items(
     nombre: Optional[str] = Query(None),

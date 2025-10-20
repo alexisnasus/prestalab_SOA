@@ -59,6 +59,7 @@ curl -X POST http://localhost:8000/route -H "Content-Type: application/json" -d 
 ```
 
 ### Crear una solicitud de préstamo (ej: Usuario ID 1)
+
 ```cmd
 curl -X POST http://localhost:8000/route -H "Content-Type: application/json" -d "{\"target_service\": \"prart\", \"method\": \"POST\", \"endpoint\": \"/solicitudes\", \"payload\": {\"usuario_id\": 1, \"tipo\": \"PRESTAMO\"}}"
 ```
