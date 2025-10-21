@@ -280,7 +280,8 @@ docker-compose logs -f
 | Método | Endpoint | Descripción |
 |--------|----------|-------------|
 | GET | `/` | Health check del servicio |
-| GET | `/items?nombre=&tipo=` | Buscar artículos del catálogo |
+| GET | `/items/all` | Obtener todos los artículos del catálogo |
+| GET | `/items?nombre=&tipo=` | Buscar artículos del catálogo con filtros |
 | GET | `/solicitudes?usuario_id=&correo=` | Listar solicitudes de un usuario |
 | POST | `/solicitudes` | Crear solicitud de préstamo |
 | POST | `/reservas` | Crear reserva de artículo |
