@@ -2,13 +2,13 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Copiar archivos necesarios
 COPY ./services/lista/requirements.txt /app/requirements.txt
-COPY ./services/lista/app.py /app
-COPY ./services/lista/models.py /app
-COPY ./bus_client.py /app/bus_client.py
-COPY ./service_logger.py /app/service_logger.py
+RUN pip install --no-cache-dir -r /app/requirements.txt
 
-RUN pip install --no-cache-dir -r requirements.txt
+COPY ./services/lista/app.py    /app/app.py
+COPY ./services/lista/models.py /app/models.py
+
+COPY ./bus_client.py     /app/bus_client.py
+COPY ./service_logger.py /app/service_logger.py
 
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]

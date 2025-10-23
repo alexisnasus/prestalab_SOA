@@ -10,7 +10,7 @@ import sys
 from datetime import datetime, timedelta
 
 sys.path.append('/app')
-from bus_client import register_service
+from bus_client import register_service, setup_heartbeat
 from service_logger import create_service_logger
 from models import Prestamo, Solicitud, ItemExistencia, Item, Sede, get_db, engine
 
@@ -31,7 +31,7 @@ async def startup():
         version="1.0.0"
     )
     
-    logger.registered(os.getenv("BUS_URL", "http://bus:8000"))
+    logger.registered(os.getenv("BUS_URL", "http://bus:5000"))
 
 @app.get("/")
 def root():

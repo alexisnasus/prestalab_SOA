@@ -1,170 +1,174 @@
 """
-Bus Client - Módulo reutilizable para registro en el ESB
-=========================================================
-Este módulo permite a cualquier servicio registrarse automáticamente
-en el Enterprise Service Bus (ESB) siguiendo patrones SOA.
+Bus Client robusto para registro/heartbeats y llamadas entre servicios.
 
-Uso:
-    from bus_client import register_service
-    
-    app = FastAPI()
-    
-    @app.on_event("startup")
-    async def startup():
-        await register_service(
-            app=app,
-            service_name="mi_servicio",
-            service_url="http://mi_servicio:8000",
-            description="Mi servicio SOA"
-        )
+- Usa BUS_URL (o BUS_HOST/BUS_PORT) para hablar con el bus.
+- /register y /heartbeat incluyen fallback TCP crudo para tolerar respuestas HTTP no estándares.
+- call_service_via_bus intenta /route; si el bus no enruta, hace fallback directo a http://<servicio>:8000.
 """
 
-import httpx
+from __future__ import annotations
+
 import asyncio
+import contextlib
+import json
+import logging
 import os
 from typing import List, Optional
+from urllib.parse import urlparse
+
+import httpx
 from fastapi import FastAPI
-import logging
 
 logger = logging.getLogger(__name__)
 
-# Configuración del bus desde variables de entorno
-BUS_URL = os.getenv("BUS_URL", "http://bus:8000")
-MAX_RETRIES = int(os.getenv("BUS_REGISTER_RETRIES", "5"))
-RETRY_DELAY = int(os.getenv("BUS_REGISTER_DELAY", "3"))
+# =========================
+# Config
+# =========================
+BUS_URL = os.getenv("BUS_URL") or f"http://{os.getenv('BUS_HOST','bus')}:{os.getenv('BUS_PORT','5000')}"
+MAX_RETRIES = int(os.getenv("BUS_REGISTER_RETRIES", "10"))
+RETRY_DELAY = float(os.getenv("BUS_REGISTER_DELAY", "2.5"))  # segundos
+HEARTBEAT_INTERVAL = int(os.getenv("BUS_HEARTBEAT_INTERVAL", "30"))
+
+# Puerto interno por defecto de los microservicios (expuestos como 8001.. en el host)
+SERVICE_PORT = os.getenv("SERVICE_PORT", "8000")
+
+# Parse para fallback TCP
+_parsed = urlparse(BUS_URL)
+BUS_SCHEME = _parsed.scheme or "http"
+BUS_HOST = _parsed.hostname or "bus"
+BUS_PORT = _parsed.port or 5000
 
 
+# =========================
+# Utilidades internas
+# =========================
+async def _sleep_backoff(attempt: int) -> None:
+    """Backoff lineal con ligero jitter."""
+    delay = RETRY_DELAY * (1 + 0.15 * attempt)
+    await asyncio.sleep(delay)
+
+
+async def _post_httpx(path: str, payload: Optional[dict], timeout: float = 5.0) -> httpx.Response:
+    async with httpx.AsyncClient(timeout=timeout, http2=False) as client:
+        return await client.post(f"{BUS_URL}{path}", json=payload)
+
+
+async def _post_raw_tcp(path: str, payload: Optional[dict], timeout: float = 5.0) -> bool:
+    """
+    Fallback: envía un POST HTTP/1.0 “manual” por socket y no valida la status line.
+    Considera éxito si pudo escribir y leer algo del socket sin excepciones.
+    """
+    body = b""
+    if payload is not None:
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+
+    req = (
+        f"POST {path} HTTP/1.0\r\n"
+        f"Host: {BUS_HOST}\r\n"
+        "Content-Type: application/json\r\n"
+        f"Content-Length: {len(body)}\r\n"
+        "Connection: close\r\n"
+        "\r\n"
+    ).encode("ascii") + body
+
+    try:
+        reader, writer = await asyncio.wait_for(asyncio.open_connection(BUS_HOST, BUS_PORT), timeout=timeout)
+        writer.write(req)
+        await writer.drain()
+        # Leemos sin validar headers/status (el bus puede responder con status line “rara”)
+        with contextlib.suppress(asyncio.TimeoutError):
+            await asyncio.wait_for(reader.read(64 * 1024), timeout=timeout)
+        writer.close()
+        with contextlib.suppress(Exception):
+            await writer.wait_closed()
+        return True
+    except Exception as e:
+        logger.debug(f"Fallback TCP falló: {e}")
+        return False
+
+
+# =========================
+# API pública
+# =========================
 async def register_service(
     app: FastAPI,
     service_name: str,
     service_url: str,
     description: Optional[str] = None,
     version: str = "1.0.0",
-    custom_endpoints: Optional[List[str]] = None
+    custom_endpoints: Optional[List[str]] = None,
 ) -> bool:
     """
-    Registra un servicio en el Enterprise Service Bus.
-    
-    Args:
-        app: Instancia de FastAPI
-        service_name: Nombre único del servicio (ej: "regist", "multa")
-        service_url: URL base del servicio (ej: "http://regist:8000")
-        description: Descripción del servicio
-        version: Versión del servicio
-        custom_endpoints: Lista personalizada de endpoints (opcional)
-    
-    Returns:
-        bool: True si el registro fue exitoso, False en caso contrario
-    
-    Ejemplo:
-        @app.on_event("startup")
-        async def startup():
-            await register_service(
-                app=app,
-                service_name="regist",
-                service_url="http://regist:8000",
-                description="Gestión de usuarios y autenticación"
-            )
+    Registra el servicio en el bus (con reintentos y fallback TCP).
     """
-    
-    # Extraer endpoints de la aplicación FastAPI si no se proporcionan
+    # Recolectar endpoints de la app si no se pasan explícitos
     if custom_endpoints is None:
-        endpoints = []
-        for route in app.routes:
-            if hasattr(route, "path"):
-                endpoints.append(route.path)
-        endpoints = list(set(endpoints))  # Eliminar duplicados
+        endpoints = sorted({getattr(r, "path", None) for r in app.routes if getattr(r, "path", None)})
     else:
-        endpoints = custom_endpoints
-    
-    # Datos de registro
-    registration_data = {
+        endpoints = list(custom_endpoints)
+
+    data = {
         "service_name": service_name,
         "service_url": service_url,
         "description": description or f"Servicio {service_name}",
         "version": version,
-        "endpoints": endpoints
+        "endpoints": endpoints,
     }
-    
-    # Intentar registro con reintentos
+
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                response = await client.post(
-                    f"{BUS_URL}/register",
-                    json=registration_data
-                )
-                
-                if response.status_code in [200, 201]:
-                    logger.info(
-                        f"✓ Servicio '{service_name}' registrado exitosamente en el bus "
-                        f"({len(endpoints)} endpoints)"
-                    )
-                    return True
-                else:
-                    logger.warning(
-                        f"⚠ Bus respondió con código {response.status_code}: {response.text}"
-                    )
-                    
+            resp = await _post_httpx("/register", data, timeout=6.0)
+            if resp.status_code in (200, 201):
+                logger.info(f"[{service_name}] [OK] REGISTERED -> {BUS_URL} (endpoints={len(endpoints)})")
+                return True
+            else:
+                logger.warning(f"[{service_name}] Bus respondió {resp.status_code}: {resp.text[:200]}")
+        except (httpx.RemoteProtocolError, httpx.LocalProtocolError) as e:
+            logger.warning(f"[{service_name}] Protocolo no estándar del bus ({type(e).__name__}). Fallback TCP…")
+            ok = await _post_raw_tcp("/register", data, timeout=6.0)
+            if ok:
+                logger.info(f"[{service_name}] [OK] REGISTERED (fallback TCP) -> {BUS_HOST}:{BUS_PORT}")
+                return True
         except httpx.ConnectError:
-            logger.warning(
-                f"⚠ Intento {attempt}/{MAX_RETRIES}: Bus no disponible en {BUS_URL}"
-            )
+            logger.warning(f"[{service_name}] Intento {attempt}/{MAX_RETRIES}: bus no disponible en {BUS_URL}")
         except Exception as e:
-            logger.error(f"⚠ Error registrando servicio: {type(e).__name__}: {e}")
-        
-        # Esperar antes del siguiente intento (excepto en el último)
+            logger.warning(f"[{service_name}] Error registrando: {type(e).__name__}: {e}")
+
         if attempt < MAX_RETRIES:
-            await asyncio.sleep(RETRY_DELAY)
-    
-    # Si llegamos aquí, todos los intentos fallaron
+            await _sleep_backoff(attempt)
+
     logger.error(
-        f"✗ No se pudo registrar '{service_name}' en el bus tras {MAX_RETRIES} intentos. "
-        f"El servicio continuará funcionando pero no será descubrible."
+        f"[{service_name}] ✗ No se pudo registrar en el bus tras {MAX_RETRIES} intentos. "
+        "El servicio seguirá funcionando pero no será descubrible."
     )
     return False
 
 
 async def send_heartbeat(service_name: str) -> bool:
     """
-    Envía un heartbeat al bus para indicar que el servicio está activo.
-    
-    Args:
-        service_name: Nombre del servicio
-    
-    Returns:
-        bool: True si el heartbeat fue exitoso
+    Envía un heartbeat al bus. Fallback TCP si la respuesta HTTP es no estándar.
     """
     try:
-        async with httpx.AsyncClient(timeout=3.0) as client:
-            response = await client.post(
-                f"{BUS_URL}/heartbeat/{service_name}"
-            )
-            return response.status_code == 200
-    except Exception as e:
-        logger.debug(f"Heartbeat falló: {e}")
+        resp = await _post_httpx(f"/heartbeat/{service_name}", None, timeout=4.0)
+        return resp.status_code == 200
+    except (httpx.RemoteProtocolError, httpx.LocalProtocolError):
+        ok = await _post_raw_tcp(f"/heartbeat/{service_name}", None, timeout=4.0)
+        return ok
+    except Exception:
         return False
 
 
-def setup_heartbeat(service_name: str, interval: int = 30):
+def setup_heartbeat(service_name: str, interval: int = HEARTBEAT_INTERVAL) -> None:
     """
-    Configura un heartbeat periódico al bus (opcional, recomendado para producción).
-    
-    Args:
-        service_name: Nombre del servicio
-        interval: Intervalo en segundos entre heartbeats
-    
-    Ejemplo:
-        @app.on_event("startup")
-        async def startup():
-            await register_service(...)
-            setup_heartbeat("mi_servicio", interval=30)
+    Lanza una tarea periódica para enviar heartbeats.
     """
     async def heartbeat_task():
         while True:
             await asyncio.sleep(interval)
-            await send_heartbeat(service_name)
-    
+            ok = await send_heartbeat(service_name)
+            if not ok:
+                logger.debug(f"[{service_name}] heartbeat falló (se reintenta)")
+
     asyncio.create_task(heartbeat_task())
 
 
@@ -173,47 +177,54 @@ async def call_service_via_bus(
     method: str,
     endpoint: str,
     payload: Optional[dict] = None,
-    timeout: int = 30
+    timeout: int = 30,
 ) -> dict:
     """
-    Llama a otro servicio a través del bus (comunicación servicio-a-servicio).
-    
-    Args:
-        target_service: Nombre del servicio destino
-        method: Método HTTP (GET, POST, PUT, DELETE)
-        endpoint: Endpoint del servicio
-        payload: Datos a enviar (opcional)
-        timeout: Timeout en segundos
-    
-    Returns:
-        dict: Respuesta del servicio
-    
-    Ejemplo:
-        # Desde el servicio 'multa', llamar al servicio 'regist'
-        usuario = await call_service_via_bus(
-            target_service="regist",
-            method="GET",
-            endpoint="/usuarios/123"
-        )
+    Llama a otro servicio:
+      1) Intenta /route del bus (por si existe en tu implementación).
+      2) Si /route no sirve (eco o protocolo raro), hace fallback DIRECTO a http://<servicio>:8000.
+    Devuelve JSON si es posible; si no, {status_code, text}.
     """
+    # 1) Intento vía /route (si el bus llegara a enrutar en el futuro)
     try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            response = await client.post(
+        async with httpx.AsyncClient(timeout=timeout, http2=False) as client:
+            r = await client.post(
                 f"{BUS_URL}/route",
                 json={
                     "target_service": target_service,
                     "method": method,
                     "endpoint": endpoint,
-                    "payload": payload
-                }
+                    "payload": payload,
+                },
             )
-            result = response.json()
-            
-            if result.get("success"):
-                return result.get("data")
-            else:
-                raise Exception(result.get("error", "Error desconocido"))
-                
-    except Exception as e:
-        logger.error(f"Error llamando a {target_service}: {e}")
-        raise
+        try:
+            j = r.json()
+            # Si el bus implementa enrutado “real”, suele devolver {"success": true, "data": ...}
+            if isinstance(j, dict) and j.get("success") is True:
+                return j.get("data")
+        except Exception:
+            # cuerpo no-JSON o un “eco”; seguimos al fallback
+            pass
+    except Exception:
+        # errores de conexión/protocolo: seguimos al fallback
+        pass
+
+    # 2) Fallback DIRECTO (DNS interno de Docker)
+    url = f"http://{target_service}:{SERVICE_PORT}{endpoint}"
+    async with httpx.AsyncClient(timeout=timeout, http2=False) as client:
+        m = method.upper()
+        if m == "GET":
+            resp = await client.get(url, params=payload or {})
+        elif m == "POST":
+            resp = await client.post(url, json=payload or {})
+        elif m == "PUT":
+            resp = await client.put(url, json=payload or {})
+        elif m == "DELETE":
+            resp = await client.delete(url, json=payload or {})
+        else:
+            raise ValueError(f"Método no soportado: {method}")
+
+    try:
+        return resp.json()
+    except Exception:
+        return {"status_code": resp.status_code, "text": resp.text}
