@@ -1,9 +1,4 @@
-fastapi
-uvicorn
 sqlalchemy
 pymysql
 passlib
 bcrypt
-python-jose[cryptography]
-httpx==0.27.2
-pydantic

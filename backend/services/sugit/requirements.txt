@@ -1,5 +1,2 @@
-fastapi
-uvicorn
-sqlalchemy
-pymysql
-email-validator
+sqlalchemy==2.0.23
+pymysql==1.1.0

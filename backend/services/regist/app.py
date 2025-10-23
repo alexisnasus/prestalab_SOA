@@ -1,72 +1,73 @@
-from fastapi import FastAPI, HTTPException, Body, status, Depends
+import socket
+import os
+import json
+from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
-from pydantic import BaseModel, EmailStr, Field
-from typing import Optional
-from datetime import datetime
-import os
-import sys
-sys.path.append('/app')  # Para importar bus_client desde el contenedor
-from bus_client import register_service
-from service_logger import create_service_logger
 from models import Usuario, Solicitud, get_db
 
-app = FastAPI(title="Servicio de Gestión de Usuarios")
+SERVICE_NAME = "regis"
+BUS_ADDRESS = ('bus', 5000)
 
-# Crear logger para este servicio
-logger = create_service_logger("regist")
+def send_response(sock, status, data):
+    """
+    Envía una respuesta al bus siguiendo el protocolo:
+    NNNNNSSSSSSTDATOS
+    donde:
+    - NNNNN: longitud de lo que sigue (5 dígitos)
+    - SSSSS: nombre del servicio (5 caracteres, padded)
+    - ST: status OK o NK (2 caracteres)
+    - DATOS: datos de respuesta
+    """
+    service_padded = SERVICE_NAME.ljust(5)[:5]
+    message = f"{service_padded}{status}{data}"
+    message_len = len(message)
+    formatted_message = f"{message_len:05d}{message}".encode('utf-8')
+    print(f"[REGIS] Enviando respuesta: {formatted_message!r}")
+    sock.sendall(formatted_message)
 
-# ============================================================================
-# REGISTRO EN EL BUS (SOA)
-# ============================================================================
-
-@app.on_event("startup")
-async def startup():
-    """Registra el servicio en el bus al iniciar"""
-    logger.startup("http://regist:8000")
-    
-    await register_service(
-        app=app,
-        service_name="regist",
-        service_url="http://regist:8000",
-        description="Gestión de usuarios y autenticación",
-        version="1.0.0"
-    )
-    
-    logger.registered(os.getenv("BUS_URL", "http://bus:5000"))
-
-# ============================================================================
-# ENDPOINTS
-# ============================================================================
-
-@app.get("/")
-def root():
-    return {"message": "Servicio REGIST disponible"}
-
-class UsuarioCreate(BaseModel):
-    id: Optional[int] = Field(default=None, ge=1)
-    nombre: str = Field(..., min_length=1)
-    correo: EmailStr
-    tipo: str = Field(..., min_length=1)
-    telefono: str = Field(default="", max_length=15)
-    password: str = Field(..., min_length=4)
-    estado: str = Field(default="ACTIVO", min_length=1)
-    preferencias_notificacion: int = 1
-
-
-class LoginRequest(BaseModel):
-    correo: EmailStr
-    password: str = Field(..., min_length=1)
-
-
-# Registrar usuario
-@app.post("/usuarios", status_code=status.HTTP_201_CREATED)
-def registrar_usuario(usuario: UsuarioCreate = Body(...), db: Session = Depends(get_db)):
-    data = usuario.dict()
-    logger.request_received("POST", "/usuarios", {**data, "password": "***"})
-
+def handle_request(data: str):
+    """
+    Procesa el request y llama a la función de negocio correspondiente.
+    Formato esperado: OPERACION {json_payload}
+    Ejemplo: register {"nombre":"Juan","correo":"juan@mail.com","password":"123","tipo":"ESTUDIANTE"}
+    """
     try:
-        # Crear instancia del modelo Usuario
+        parts = data.split(' ', 1)
+        operation = parts[0]
+        payload_str = parts[1] if len(parts) > 1 else '{}'
+        payload = json.loads(payload_str)
+
+        print(f"[REGIS] Operación: {operation}")
+        print(f"[REGIS] Payload: {payload}")
+
+        db_session = next(get_db())
+
+        if operation == "register":
+            return registrar_usuario(payload, db_session)
+        elif operation == "login":
+            return login(payload, db_session)
+        elif operation == "get_user":
+            return consultar_usuario(payload, db_session)
+        elif operation == "update_user":
+            return actualizar_usuario(payload, db_session)
+        elif operation == "update_solicitud":
+            return actualizar_solicitud_registro(payload, db_session)
+        else:
+            return "NK", json.dumps({"error": f"Operación desconocida: {operation}"})
+
+    except json.JSONDecodeError:
+        return "NK", json.dumps({"error": "Payload no es un JSON válido"})
+    except IndexError:
+        return "NK", json.dumps({"error": "Formato inválido. Use: OPERACION {json_payload}"})
+    except Exception as e:
+        print(f"[REGIS] Error inesperado: {e}")
+        return "NK", json.dumps({"error": f"Error interno: {str(e)}"})
+
+# --- Lógica de Negocio ---
+
+def registrar_usuario(data: dict, db: Session):
+    try:
         nuevo_usuario = Usuario(
             nombre=data["nombre"],
             correo=data["correo"].lower(),
@@ -76,153 +77,164 @@ def registrar_usuario(usuario: UsuarioCreate = Body(...), db: Session = Depends(
             preferencias_notificacion=data.get("preferencias_notificacion", 1),
             registro_instante=datetime.now()
         )
-        
-        # Establecer la contraseña hasheada
         nuevo_usuario.set_password(data["password"])
-        
-        # Si se proporciona un ID específico, establecerlo
-        if data.get("id") is not None:
+        if data.get("id"):
             nuevo_usuario.id = data["id"]
         
         db.add(nuevo_usuario)
         db.commit()
         db.refresh(nuevo_usuario)
         
-        response_data = {
-            "message": "Usuario registrado",
-            "user": nuevo_usuario.to_dict(),
-        }
+        response_data = {"message": "Usuario registrado", "user": nuevo_usuario.to_dict()}
+        return "OK", json.dumps(response_data)
         
-        logger.response_sent(201, "Usuario registrado exitosamente", f"ID: {nuevo_usuario.id}")
-        return response_data
-        
-    except IntegrityError as exc:
+    except IntegrityError:
         db.rollback()
-        logger.error("Integridad de datos", f"Correo duplicado: {exc.orig}")
-        raise HTTPException(status_code=409, detail="El correo ya está registrado")
-    except SQLAlchemyError as exc:
+        return "NK", json.dumps({"error": "El correo ya está registrado"})
+    except (SQLAlchemyError, KeyError) as e:
         db.rollback()
-        logger.error("Error de base de datos", f"Error al registrar usuario: {str(exc)}")
-        raise HTTPException(status_code=500, detail=f"Error interno al registrar usuario")
-    except Exception as exc:
-        db.rollback()
-        logger.error("Error inesperado", f"Error al registrar usuario: {str(exc)}")
-        raise HTTPException(status_code=500, detail=f"Error inesperado en el servidor")
+        return "NK", json.dumps({"error": f"Error en la base de datos o datos incompletos: {str(e)}"})
 
-# Autenticar usuario
-@app.post("/auth/login", status_code=status.HTTP_200_OK)
-def login(auth: LoginRequest = Body(...), db: Session = Depends(get_db)):
-    payload = auth.dict()
-    correo = payload["correo"].lower()
-    logger.request_received("POST", "/auth/login", {"correo": correo})
-
-    # Buscar usuario por correo usando ORM
+def login(auth: dict, db: Session):
+    correo = auth["correo"].lower()
     user = db.query(Usuario).filter(Usuario.correo == correo).first()
     
-    if not user or not user.check_password(payload["password"]):
-        logger.response_sent(401, "Credenciales inválidas")
-        raise HTTPException(status_code=401, detail="Credenciales inválidas")
+    if not user or not user.check_password(auth["password"]):
+        return "NK", json.dumps({"error": "Credenciales inválidas"})
 
     user_data = user.to_dict()
     token = f"session-{user_data['id']}"
+    response_data = {"message": f"Usuario {correo} autenticado", "token": token, "user": user_data}
+    return "OK", json.dumps(response_data)
 
-    response_data = {
-        "message": f"Usuario {correo} autenticado",
-        "token": token,
-        "user": user_data,
-    }
-
-    logger.response_sent(200, "Autenticación exitosa", f"Usuario: {correo}")
-    return response_data
-
-# Retrieve usuario
-@app.get("/usuarios/{id}")
-def consultar_usuario(id: int, db: Session = Depends(get_db)):
-    logger.request_received("GET", f"/usuarios/{id}")
-    
-    # Buscar usuario por ID usando ORM
-    user = db.query(Usuario).filter(Usuario.id == id).first()
-    
+def consultar_usuario(payload: dict, db: Session):
+    user_id = payload.get("id")
+    if not user_id:
+        return "NK", json.dumps({"error": "ID de usuario no proporcionado"})
+        
+    user = db.query(Usuario).filter(Usuario.id == user_id).first()
     if not user:
-        logger.response_sent(404, "Usuario no encontrado")
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        return "NK", json.dumps({"error": "Usuario no encontrado"})
+        
+    return "OK", json.dumps(user.to_dict())
 
-    response_data = user.to_dict()
-    logger.response_sent(200, "Usuario encontrado", f"ID: {id}")
-    return response_data
+def actualizar_usuario(payload: dict, db: Session):
+    user_id = payload.get("id")
+    datos = payload.get("datos")
+    if not user_id or not datos:
+        return "NK", json.dumps({"error": "Faltan 'id' o 'datos' para actualizar"})
 
-# Update usuario
-@app.put("/usuarios/{id}")
-def actualizar_usuario(id: int, datos: dict = Body(...), db: Session = Depends(get_db)):
-    logger.request_received("PUT", f"/usuarios/{id}", datos)
-    
-    # Buscar usuario por ID usando ORM
-    user = db.query(Usuario).filter(Usuario.id == id).first()
-    
+    user = db.query(Usuario).filter(Usuario.id == user_id).first()
     if not user:
-        logger.response_sent(404, "Usuario no encontrado")
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        return "NK", json.dumps({"error": "Usuario no encontrado"})
     
-    # Actualizar solo los campos proporcionados
     try:
         for key, value in datos.items():
             if key == "password":
-                # Hashear la contraseña si se está actualizando
                 user.set_password(value)
             elif hasattr(user, key):
                 setattr(user, key, value)
         
         db.commit()
         db.refresh(user)
-        
-        logger.response_sent(200, f"Usuario {id} actualizado")
-        return {"message": f"Usuario {id} actualizado"}
-        
-    except SQLAlchemyError as exc:
+        return "OK", json.dumps({"message": f"Usuario {user_id} actualizado"})
+    except SQLAlchemyError as e:
         db.rollback()
-        logger.error("Error actualizando usuario", str(exc))
-        raise HTTPException(status_code=500, detail="Error al actualizar usuario")
+        return "NK", json.dumps({"error": f"Error al actualizar: {str(e)}"})
 
+def actualizar_solicitud_registro(payload: dict, db: Session):
+    solicitud_id = payload.get("solicitud_id")
+    nuevo_estado = payload.get("estado")
 
-class SolicitudActualizacion(BaseModel):
-    estado: str = Field(..., pattern="^(APROBADA|RECHAZADA)$")
+    if not solicitud_id or not nuevo_estado or nuevo_estado not in ["APROBADA", "RECHAZADA"]:
+        return "NK", json.dumps({"error": "Faltan datos o el estado es inválido"})
 
-
-# Aprobar o rechazar solicitud de registro
-@app.put("/solicitudes-registro/{solicitud_id}/actualizar")
-def actualizar_solicitud_registro(solicitud_id: int, actualizacion: SolicitudActualizacion = Body(...), db: Session = Depends(get_db)):
-    logger.request_received("PUT", f"/solicitudes-registro/{solicitud_id}/actualizar", actualizacion.dict())
-    
-    # Buscar la solicitud por ID usando ORM
     solicitud = db.query(Solicitud).filter(Solicitud.id == solicitud_id).first()
-    
     if not solicitud:
-        logger.response_sent(404, "Solicitud no encontrada")
-        raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+        return "NK", json.dumps({"error": "Solicitud no encontrada"})
     
     if solicitud.estado != "PENDIENTE":
-        logger.response_sent(400, f"Solicitud no está en estado PENDIENTE, estado actual: {solicitud.estado}")
-        raise HTTPException(
-            status_code=400,
-            detail=f"La solicitud no está en estado PENDIENTE. Estado actual: {solicitud.estado}"
-        )
-    
-    # Actualizar el estado de la solicitud
+        return "NK", json.dumps({"error": f"La solicitud ya fue procesada (estado: {solicitud.estado})"})
+
     try:
-        solicitud.estado = actualizacion.estado
+        solicitud.estado = nuevo_estado
         db.commit()
         db.refresh(solicitud)
-        
-        response_data = {
-            "message": f"Solicitud {solicitud_id} {actualizacion.estado.lower()}",
-            "solicitud_id": solicitud_id,
-            "nuevo_estado": actualizacion.estado
-        }
-        
-        logger.response_sent(200, f"Solicitud {solicitud_id} actualizada a {actualizacion.estado}")
-        return response_data
-        
-    except SQLAlchemyError as exc:
+        response = {"message": f"Solicitud {solicitud_id} actualizada a {nuevo_estado}"}
+        return "OK", json.dumps(response)
+    except SQLAlchemyError as e:
         db.rollback()
-        logger.error("Error actualizando solicitud", str(exc))
-        raise HTTPException(status_code=500, detail="Error al actualizar solicitud")
+        return "NK", json.dumps({"error": f"Error al actualizar solicitud: {str(e)}"})
+
+# --- Main Loop ---
+
+def main():
+    """
+    Función principal del servicio.
+    1. Conecta al bus
+    2. Se registra como servicio usando sinit
+    3. Escucha transacciones en un bucle infinito
+    4. Procesa cada transacción y responde
+    """
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        print(f"[REGIS] Conectando al bus en {BUS_ADDRESS}...")
+        sock.connect(BUS_ADDRESS)
+
+        # Registrar el servicio usando sinit
+        init_message = f"sinit{SERVICE_NAME}"
+        init_message_len = len(init_message)
+        formatted_init_message = f"{init_message_len:05d}{init_message}".encode('utf-8')
+        print(f"[REGIS] Registrando servicio: {formatted_init_message!r}")
+        sock.sendall(formatted_init_message)
+
+        # Esperar confirmación de registro (NNNNNNOK o similar)
+        length_bytes = sock.recv(5)
+        if length_bytes:
+            amount_expected = int(length_bytes.decode('utf-8'))
+            confirmation = sock.recv(amount_expected).decode('utf-8')
+            print(f"[REGIS] Confirmación recibida: {confirmation!r}")
+
+        # Bucle principal: escuchar transacciones
+        print(f"[REGIS] Servicio '{SERVICE_NAME}' listo. Esperando transacciones...\n")
+        
+        while True:
+            # Leer longitud del mensaje (5 dígitos)
+            length_bytes = sock.recv(5)
+            if not length_bytes:
+                print("[REGIS] Conexión cerrada por el bus.")
+                break
+            
+            amount_expected = int(length_bytes.decode('utf-8'))
+            
+            # Leer el mensaje completo
+            data_received = b''
+            while len(data_received) < amount_expected:
+                chunk = sock.recv(amount_expected - len(data_received))
+                if not chunk:
+                    break
+                data_received += chunk
+            
+            message_str = data_received.decode('utf-8')
+            print(f"\n[REGIS] ===== Nueva transacción =====")
+            print(f"[REGIS] Datos recibidos: {message_str!r}")
+            
+            # Procesar la solicitud (los datos vienen directamente, sin prefijo de cliente)
+            status, response_data = handle_request(message_str)
+            
+            # Enviar respuesta al bus
+            send_response(sock, status, response_data)
+            print(f"[REGIS] Respuesta enviada con status: {status}")
+
+    except ConnectionRefusedError:
+        print("[REGIS] ERROR: No se pudo conectar al bus. Verifique que esté corriendo.")
+    except Exception as e:
+        print(f"[REGIS] ERROR: {e}")
+        import traceback
+        traceback.print_exc()
+    finally:
+        print("Cerrando socket.")
+        sock.close()
+
+if __name__ == "__main__":
+    main()

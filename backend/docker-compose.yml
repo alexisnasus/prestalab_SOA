@@ -51,14 +51,12 @@ services:
       dockerfile: services/gerep/Dockerfile
     container_name: soa_gerep
     environment:
-      - BUS_URL=http://bus:5000
       - DATABASE_URL=mysql+pymysql://usoa_user:psoa_password@db:3306/soa_db?charset=utf8mb4
     depends_on:
       db:
         condition: service_healthy
       bus:
         condition: service_started
-    ports: ["8001:8000"]
     networks: [soa_net]
 
   lista:
@@ -67,14 +65,12 @@ services:
       dockerfile: services/lista/Dockerfile
     container_name: soa_lista
     environment:
-      - BUS_URL=http://bus:5000
       - DATABASE_URL=mysql+pymysql://usoa_user:psoa_password@db:3306/soa_db?charset=utf8mb4
     depends_on:
       db:
         condition: service_healthy
       bus:
         condition: service_started
-    ports: ["8002:8000"]
     networks: [soa_net]
 
   multa:
@@ -83,14 +79,12 @@ services:
       dockerfile: services/multa/Dockerfile
     container_name: soa_multa
     environment:
-      - BUS_URL=http://bus:5000
       - DATABASE_URL=mysql+pymysql://usoa_user:psoa_password@db:3306/soa_db?charset=utf8mb4
     depends_on:
       db:
         condition: service_healthy
       bus:
         condition: service_started
-    ports: ["8003:8000"]
     networks: [soa_net]
 
   notis:
@@ -99,14 +93,12 @@ services:
       dockerfile: services/notis/Dockerfile
     container_name: soa_notis
     environment:
-      - BUS_URL=http://bus:5000
       - DATABASE_URL=mysql+pymysql://usoa_user:psoa_password@db:3306/soa_db?charset=utf8mb4
     depends_on:
       db:
         condition: service_healthy
       bus:
         condition: service_started
-    ports: ["8004:8000"]
     networks: [soa_net]
 
   prart:
@@ -115,14 +107,12 @@ services:
       dockerfile: services/prart/Dockerfile
     container_name: soa_prart
     environment:
-      - BUS_URL=http://bus:5000
       - DATABASE_URL=mysql+pymysql://usoa_user:psoa_password@db:3306/soa_db?charset=utf8mb4
     depends_on:
       db:
         condition: service_healthy
       bus:
         condition: service_started
-    ports: ["8005:8000"]
     networks: [soa_net]
 
   regist:
@@ -131,14 +121,12 @@ services:
       dockerfile: services/regist/Dockerfile
     container_name: soa_regist
     environment:
-      - BUS_URL=http://bus:5000
       - DATABASE_URL=mysql+pymysql://usoa_user:psoa_password@db:3306/soa_db?charset=utf8mb4
     depends_on:
       db:
         condition: service_healthy
       bus:
         condition: service_started
-    ports: ["8006:8000"]
     networks: [soa_net]
 
   sugit:
@@ -147,14 +135,12 @@ services:
       dockerfile: services/sugit/Dockerfile
     container_name: soa_sugit
     environment:
-      - BUS_URL=http://bus:5000
       - DATABASE_URL=mysql+pymysql://usoa_user:psoa_password@db:3306/soa_db?charset=utf8mb4
     depends_on:
       db:
         condition: service_healthy
       bus:
         condition: service_started
-    ports: ["8007:8000"]
     networks: [soa_net]
 
 volumes:
