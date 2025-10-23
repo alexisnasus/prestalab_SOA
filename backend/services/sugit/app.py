@@ -1,266 +1,174 @@
-import socket
-import json
+from fastapi import FastAPI, HTTPException, Body, status, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
+from pydantic import BaseModel, Field
+from typing import Optional
+import os
+import sys
+sys.path.append('/app')  # Para importar bus_client desde el contenedor
+from bus_client import register_service
+from service_logger import create_service_logger
 from models import Sugerencia, Usuario, get_db
 
-SERVICE_NAME = "sugit"
-BUS_ADDRESS = ('bus', 5000)
+app = FastAPI(title="Servicio de Gestión de Sugerencias")
 
-def send_response(sock, status, data):
-    """
-    Envía una respuesta al bus siguiendo el protocolo:
-    NNNNNSSSSSSTDATOS
-    """
-    service_padded = SERVICE_NAME.ljust(5)[:5]
-    message = f"{service_padded}{status}{data}"
-    message_len = len(message)
-    formatted_message = f"{message_len:05d}{message}".encode('utf-8')
-    print(f"[SUGIT] Enviando respuesta: {formatted_message!r}")
-    sock.sendall(formatted_message)
+# Crear logger para este servicio
+logger = create_service_logger("sugit")
 
-def handle_request(data: str):
-    """
-    Procesa el request y llama a la función de negocio correspondiente.
-    Formato esperado: OPERACION {json_payload}
-    """
+# ============================================================================
+# REGISTRO EN EL BUS (SOA)
+# ============================================================================
+
+@app.on_event("startup")
+async def startup():
+    """Registra el servicio en el bus al iniciar"""
+    logger.startup("http://sugit:8000")
+    
+    await register_service(
+        app=app,
+        service_name="sugit",
+        service_url="http://sugit:8000",
+        description="Gestión de sugerencias de usuarios",
+        version="1.0.0"
+    )
+    
+    logger.registered(os.getenv("BUS_URL", "http://bus:5000"))
+
+# ============================================================================
+# ENDPOINTS
+# ============================================================================
+
+@app.get("/")
+def root():
+    return {"message": "Servicio SUGIT disponible"}
+
+# Modelos Pydantic
+class SugerenciaCreate(BaseModel):
+    usuario_id: int = Field(..., gt=0)
+    sugerencia: str = Field(..., min_length=1, max_length=100)
+
+# Registrar sugerencia
+@app.post("/sugerencias", status_code=status.HTTP_201_CREATED)
+def registrar_sugerencia(sugerencia_data: SugerenciaCreate = Body(...), db: Session = Depends(get_db)):
+    logger.request_received("POST", "/sugerencias", sugerencia_data.dict())
+    
     try:
-        parts = data.split(' ', 1)
-        operation = parts[0]
-        payload_str = parts[1] if len(parts) > 1 else '{}'
-        payload = json.loads(payload_str)
-
-        print(f"[SUGIT] Operación: {operation}")
-        print(f"[SUGIT] Payload: {payload}")
-
-        db_session = next(get_db())
-
-        if operation == "create_sugerencia":
-            return registrar_sugerencia(payload, db_session)
-        elif operation == "get_sugerencias":
-            return listar_sugerencias(payload, db_session)
-        elif operation == "aprobar_sugerencia":
-            return aprobar_sugerencia(payload, db_session)
-        elif operation == "rechazar_sugerencia":
-            return rechazar_sugerencia(payload, db_session)
-        else:
-            return "NK", json.dumps({"error": f"Operación desconocida: {operation}"})
-
-    except json.JSONDecodeError:
-        return "NK", json.dumps({"error": "Payload no es un JSON válido"})
-    except IndexError:
-        return "NK", json.dumps({"error": "Formato inválido. Use: OPERACION {json_payload}"})
-    except Exception as e:
-        print(f"[SUGIT] Error inesperado: {e}")
-        import traceback
-        traceback.print_exc()
-        return "NK", json.dumps({"error": f"Error interno: {str(e)}"})
-
-# --- Lógica de Negocio ---
-
-def registrar_sugerencia(payload: dict, db: Session):
-    """
-    Registra una nueva sugerencia de usuario.
-    """
-    try:
-        usuario_id = payload.get("usuario_id")
-        sugerencia_texto = payload.get("sugerencia")
-
-        if not usuario_id or not sugerencia_texto:
-            return "NK", json.dumps({"error": "Faltan campos requeridos (usuario_id, sugerencia)"})
-
-        if len(sugerencia_texto) > 100:
-            return "NK", json.dumps({"error": "La sugerencia no puede exceder 100 caracteres"})
-
         # Verificar que el usuario existe
-        usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+        usuario = db.query(Usuario).filter(Usuario.id == sugerencia_data.usuario_id).first()
         if not usuario:
-            return "NK", json.dumps({"error": "Usuario no encontrado"})
-
+            logger.response_sent(404, "Usuario no encontrado")
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        
         # Crear nueva sugerencia
         nueva_sugerencia = Sugerencia(
-            usuario_id=usuario_id,
-            sugerencia=sugerencia_texto,
+            usuario_id=sugerencia_data.usuario_id,
+            sugerencia=sugerencia_data.sugerencia,
             estado='PENDIENTE'
         )
-
+        
         db.add(nueva_sugerencia)
         db.commit()
         db.refresh(nueva_sugerencia)
-
+        
         response_data = {
             "id": nueva_sugerencia.id,
-            "message": "Sugerencia registrada exitosamente"
+            "message": "Sugerencia registrada"
         }
-
-        return "OK", json.dumps(response_data)
-
-    except SQLAlchemyError as e:
+        
+        logger.response_sent(201, "Sugerencia registrada", f"ID: {nueva_sugerencia.id}")
+        return response_data
+        
+    except SQLAlchemyError as exc:
         db.rollback()
-        return "NK", json.dumps({"error": f"Error al registrar sugerencia: {str(e)}"})
+        logger.error("Error registrando sugerencia", str(exc))
+        raise HTTPException(status_code=500, detail="Error al registrar sugerencia")
 
-def listar_sugerencias(payload: dict, db: Session):
-    """
-    Lista todas las sugerencias registradas.
-    """
+# Listar sugerencias
+@app.get("/sugerencias", status_code=status.HTTP_200_OK)
+def listar_sugerencias(db: Session = Depends(get_db)):
+    logger.request_received("GET", "/sugerencias")
+    
     try:
-        # Obtener todas las sugerencias
+        # Obtener todas las sugerencias usando ORM
         sugerencias = db.query(Sugerencia).all()
-
+        
+        # Convertir a diccionarios
         data = [
             {
                 "id": s.id,
                 "usuario_id": s.usuario_id,
                 "sugerencia": s.sugerencia,
                 "estado": s.estado,
-                "registro_instante": s.registro_instante.strftime("%Y-%m-%d %H:%M:%S") if s.registro_instante else None
+                "registro_instante": s.registro_instante
             }
             for s in sugerencias
         ]
+        
+        logger.response_sent(200, "Sugerencias obtenidas", f"Total: {len(data)}")
+        return data
+        
+    except SQLAlchemyError as exc:
+        logger.error("Error listando sugerencias", str(exc))
+        raise HTTPException(status_code=500, detail="Error al listar sugerencias")
 
-        response_data = {
-            "total": len(data),
-            "sugerencias": data
-        }
-
-        return "OK", json.dumps(response_data)
-
-    except SQLAlchemyError as e:
-        return "NK", json.dumps({"error": f"Error al listar sugerencias: {str(e)}"})
-
-def aprobar_sugerencia(payload: dict, db: Session):
-    """
-    Aprueba una sugerencia cambiando su estado a ACEPTADA.
-    """
+# Aprobar sugerencia
+@app.put("/sugerencias/{id}/aprobar", status_code=status.HTTP_200_OK)
+def aprobar_sugerencia(id: int, db: Session = Depends(get_db)):
+    logger.request_received("PUT", f"/sugerencias/{id}/aprobar")
+    
     try:
-        sugerencia_id = payload.get("id")
-
-        if not sugerencia_id:
-            return "NK", json.dumps({"error": "ID de sugerencia no proporcionado"})
-
-        # Buscar la sugerencia
-        sugerencia = db.query(Sugerencia).filter(Sugerencia.id == sugerencia_id).first()
-
+        # Buscar la sugerencia por ID usando ORM
+        sugerencia = db.query(Sugerencia).filter(Sugerencia.id == id).first()
+        
         if not sugerencia:
-            return "NK", json.dumps({"error": "Sugerencia no encontrada"})
-
+            logger.response_sent(404, "Sugerencia no encontrada")
+            raise HTTPException(status_code=404, detail="Sugerencia no encontrada")
+        
         # Actualizar el estado
         sugerencia.estado = 'ACEPTADA'
         db.commit()
         db.refresh(sugerencia)
-
+        
         response_data = {
-            "id": sugerencia_id,
-            "message": "Sugerencia aprobada exitosamente"
+            "id": id,
+            "message": "Sugerencia aprobada"
         }
-
-        return "OK", json.dumps(response_data)
-
-    except SQLAlchemyError as e:
+        
+        logger.response_sent(200, f"Sugerencia {id} aprobada")
+        return response_data
+        
+    except SQLAlchemyError as exc:
         db.rollback()
-        return "NK", json.dumps({"error": f"Error al aprobar sugerencia: {str(e)}"})
+        logger.error("Error aprobando sugerencia", str(exc))
+        raise HTTPException(status_code=500, detail="Error al aprobar sugerencia")
 
-def rechazar_sugerencia(payload: dict, db: Session):
-    """
-    Rechaza una sugerencia cambiando su estado a RECHAZADA.
-    """
+# Rechazar sugerencia
+@app.put("/sugerencias/{id}/rechazar", status_code=status.HTTP_200_OK)
+def rechazar_sugerencia(id: int, db: Session = Depends(get_db)):
+    logger.request_received("PUT", f"/sugerencias/{id}/rechazar")
+    
     try:
-        sugerencia_id = payload.get("id")
-
-        if not sugerencia_id:
-            return "NK", json.dumps({"error": "ID de sugerencia no proporcionado"})
-
-        # Buscar la sugerencia
-        sugerencia = db.query(Sugerencia).filter(Sugerencia.id == sugerencia_id).first()
-
+        # Buscar la sugerencia por ID usando ORM
+        sugerencia = db.query(Sugerencia).filter(Sugerencia.id == id).first()
+        
         if not sugerencia:
-            return "NK", json.dumps({"error": "Sugerencia no encontrada"})
-
+            logger.response_sent(404, "Sugerencia no encontrada")
+            raise HTTPException(status_code=404, detail="Sugerencia no encontrada")
+        
         # Actualizar el estado
         sugerencia.estado = 'RECHAZADA'
         db.commit()
         db.refresh(sugerencia)
-
+        
         response_data = {
-            "id": sugerencia_id,
+            "id": id,
             "message": "Sugerencia rechazada"
         }
-
-        return "OK", json.dumps(response_data)
-
-    except SQLAlchemyError as e:
-        db.rollback()
-        return "NK", json.dumps({"error": f"Error al rechazar sugerencia: {str(e)}"})
-
-# --- Main Loop ---
-
-def main():
-    """
-    Función principal del servicio.
-    1. Conecta al bus
-    2. Se registra como servicio usando sinit
-    3. Escucha transacciones en un bucle infinito
-    4. Procesa cada transacción y responde
-    """
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    try:
-        print(f"[SUGIT] Conectando al bus en {BUS_ADDRESS}...")
-        sock.connect(BUS_ADDRESS)
-
-        # Registrar el servicio usando sinit
-        init_message = f"sinit{SERVICE_NAME}"
-        init_message_len = len(init_message)
-        formatted_init_message = f"{init_message_len:05d}{init_message}".encode('utf-8')
-        print(f"[SUGIT] Registrando servicio: {formatted_init_message!r}")
-        sock.sendall(formatted_init_message)
-
-        # Esperar confirmación de registro
-        length_bytes = sock.recv(5)
-        if length_bytes:
-            amount_expected = int(length_bytes.decode('utf-8'))
-            confirmation = sock.recv(amount_expected).decode('utf-8')
-            print(f"[SUGIT] Confirmación recibida: {confirmation!r}")
-
-        # Bucle principal: escuchar transacciones
-        print(f"[SUGIT] Servicio '{SERVICE_NAME}' listo. Esperando transacciones...\n")
         
-        while True:
-            # Leer longitud del mensaje (5 dígitos)
-            length_bytes = sock.recv(5)
-            if not length_bytes:
-                print("[SUGIT] Conexión cerrada por el bus.")
-                break
-            
-            amount_expected = int(length_bytes.decode('utf-8'))
-            
-            # Leer el mensaje completo
-            data_received = b''
-            while len(data_received) < amount_expected:
-                chunk = sock.recv(amount_expected - len(data_received))
-                if not chunk:
-                    break
-                data_received += chunk
-            
-            message_str = data_received.decode('utf-8')
-            print(f"\n[SUGIT] ===== Nueva transacción =====")
-            print(f"[SUGIT] Datos recibidos: {message_str!r}")
-            
-            # Procesar la solicitud
-            status, response_data = handle_request(message_str)
-            
-            # Enviar respuesta al bus
-            send_response(sock, status, response_data)
-            print(f"[SUGIT] Respuesta enviada con status: {status}")
-
-    except ConnectionRefusedError:
-        print("[SUGIT] ERROR: No se pudo conectar al bus. Verifique que esté corriendo.")
-    except Exception as e:
-        print(f"[SUGIT] ERROR: {e}")
-        import traceback
-        traceback.print_exc()
-    finally:
-        print("[SUGIT] Cerrando socket.")
-        sock.close()
-
-if __name__ == "__main__":
-    main()
+        logger.response_sent(200, f"Sugerencia {id} rechazada")
+        return response_data
+        
+    except SQLAlchemyError as exc:
+        db.rollback()
+        logger.error("Error rechazando sugerencia", str(exc))
+        raise HTTPException(status_code=500, detail="Error al rechazar sugerencia")

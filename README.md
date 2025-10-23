@@ -211,62 +211,42 @@ docker logs -f soa_regist
 ---
 
 # Logs de todos los servicios
-docker-compose logs -f
+
+## 🚀 Comandos Esencialesdocker-compose logs -f
+
 ```
-
----
-
-## Comandos Esenciales
 
 ### Levantar Sistema
 
-**Primera vez o después de cambios en código:**
-
-```bash
-cd backend
-docker-compose down --volumes
-docker-compose build --no-cache
-docker-compose up -d
-```
-
-**Verificar registro de servicios:**
-
-```bash
-docker logs soa_bus
-# Deberías ver: "sinit recibido de regis", "sinit recibido de prart", etc.
-```
-
-**Ejecuciones normales:**
-
-```bash
-cd backend
-docker-compose up -d
-```
-
-### Ver Logs
-
-```bash
-# Logs de un servicio
-docker logs -f soa_regist
-
-# Logs de todos
-docker-compose logs -f
-```
-
 ### Reiniciar Servicios
 
+**Primera vez (con rebuild):**
+
 ```bash
-# Reiniciar todo
-docker-compose restart
 
-# Reiniciar solo el bus
-docker-compose restart bus
+```bash# Reiniciar todo
 
-# Reiniciar un servicio específico
+cd backenddocker-compose restart
+
+docker-compose down --volumes --remove-orphans
+
+docker-compose up --build# Reiniciar solo el bus
+
+```docker-compose restart bus
+
+
+
+**Ejecuciones posteriores:**# Reiniciar un servicio específico
+
 docker-compose restart regist
-```
 
----
+```bash```
+
+cd backend
+
+docker-compose up -d---
+
+```
 
 ## 📊 Endpoints del Bus
 
@@ -710,53 +690,75 @@ NNNNNregisupdate_solicitud {"solicitud_id":2,"estado":"RECHAZADA"}| PUT | `/usua
 
 
 
-### LISTA - Listas de Espera
+### LISTA - Listas de Espera```bash
 
-**Nombre del servicio:** `lista`
+# Bash/Linux/Mac
 
-#### Operaciones disponibles:
+**Nombre del servicio:** `lista`curl -X PUT http://localhost:8006/solicitudes/1/actualizar \
 
-- `create_lista_espera` - Agregar usuario a lista de espera
+  -H "Content-Type: application/json" \
+
+#### Operaciones disponibles:  -d '{"estado": "APROBADA"}'
+
+- `create_lista_espera` - Agregar usuario a lista de espera```
+
 - `update_lista_espera` - Actualizar estado (ATENDIDA/CANCELADA)
-- `get_lista_espera` - Consultar lista de espera por artículo
 
----
+- `get_lista_espera` - Consultar lista de espera por artículo```powershell
 
-### NOTIS - Notificaciones
+# PowerShell
 
-**Nombre del servicio:** `notis`
+---$body = @{ estado = "APROBADA" } | ConvertTo-Json
+
+Invoke-RestMethod -Uri "http://localhost:8006/solicitudes/1/actualizar" `
+
+### NOTIS - Notificaciones  -Method Put `
+
+  -ContentType "application/json" `
+
+**Nombre del servicio:** `notis`  -Body $body
+
+```
 
 #### Operaciones disponibles:
 
-- `create_notificacion` - Crear notificación
+- `create_notificacion` - Crear notificación**Rechazar una solicitud:**
+
 - `get_preferencias` - Obtener preferencias de notificación
-- `update_preferencias` - Actualizar preferencias de notificación
 
----
+- `update_preferencias` - Actualizar preferencias de notificación```bash
 
-### GEREP - Reportes & Historial
+# Bash/Linux/Mac
+
+---curl -X PUT http://localhost:8006/solicitudes/2/actualizar \
+
+  -H "Content-Type: application/json" \
+
+### GEREP - Reportes & Historial  -d '{"estado": "RECHAZADA"}'
+
+```
 
 **Nombre del servicio:** `gerep`
 
-#### Operaciones disponibles:
+```powershell
 
-- `get_historial` - Historial de préstamos de usuario (formato: json/csv/pdf)
-- `get_reporte_circulacion` - Métricas de circulación por sede
+#### Operaciones disponibles:# PowerShell
 
----
+- `get_historial` - Historial de préstamos de usuario (formato: json/csv/pdf)$body = @{ estado = "RECHAZADA" } | ConvertTo-Json
 
-### SUGIT - Sugerencias
+- `get_reporte_circulacion` - Métricas de circulación por sedeInvoke-RestMethod -Uri "http://localhost:8006/solicitudes/2/actualizar" `
 
-**Nombre del servicio:** `sugit`
+  -Method Put `
 
-#### Operaciones disponibles:
+---  -ContentType "application/json" `
 
-- `create_sugerencia` - Registrar sugerencia
-- `get_sugerencias` - Listar todas las sugerencias
-- `aprobar_sugerencia` - Aprobar sugerencia
-- `rechazar_sugerencia` - Rechazar sugerencia
+  -Body $body
 
----
+### SUGIT - Sugerencias```
+
+
+
+**Nombre del servicio:** `sugit`**Respuesta exitosa (200 OK):**
 
 
 
@@ -768,27 +770,47 @@ NNNNNregisupdate_solicitud {"solicitud_id":2,"estado":"RECHAZADA"}| PUT | `/usua
 
 - `aprobar_sugerencia` - Aprobar sugerencia  "solicitud_id": 1,
 
-- `rechazar_sugerencia` - Rechazar sugerencia
+- `rechazar_sugerencia` - Rechazar sugerencia  "nuevo_estado": "APROBADA"
 
----
+}
 
-## 🧪 Ejemplo de Cliente Python
+---```
 
-```python
-import socket
-import json
 
-def send_to_bus(service_name, operation, payload):
+
+## 🧪 Ejemplo de Cliente Python**Errores posibles:**
+
+
+
+```python- **404 Not Found**: Solicitud no existe
+
+import socket- **400 Bad Request**: Solicitud no está en estado PENDIENTE
+
+import json- **422 Validation Error**: Estado debe ser "APROBADA" o "RECHAZADA"
+
+
+
+def send_to_bus(service_name, operation, payload):---
+
     """
-    Envía una transacción al bus y espera la respuesta.
+
+    Envía una transacción al bus y espera la respuesta.### Comandos utiles
+
     
-    Args:
-        service_name: Nombre del servicio (max 5 caracteres)
-        operation: Operación a ejecutar
+
+    Args:```bash
+
+        service_name: Nombre del servicio (max 5 caracteres)curl -X PUT http://localhost:8006/solicitudes/1/actualizar -H "Content-Type: application/json" -d "{\"estado\": \"APROBADA\"}"
+
+        operation: Operación a ejecutar```
+
         payload: Diccionario con los datos
-    """
-    # Crear socket TCP
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+    """```powershell
+
+    # Crear socket TCPInvoke-RestMethod -Uri "http://localhost:8006/solicitudes/1/actualizar" -Method Put -ContentType "application/json" -Body '{"estado": "APROBADA"}'
+
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)```
     
     try:
         # Conectar al bus
@@ -864,62 +886,9 @@ else:
     print(f"Error: {response['error']}")
 ```
 
-### Probar el Sistema
-
-Crear archivo `test_bus.py` en directorio `backend`:
-
-```python
-import socket
-import json
-
-def send_to_bus(service, operation, payload):
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.connect(('localhost', 5000))
-    
-    data = f"{operation} {json.dumps(payload)}"
-    service_padded = service.ljust(5)[:5]
-    message = f"{service_padded}{data}"
-    formatted = f"{message_len:05d}{message}".encode('utf-8')
-    
-    sock.sendall(formatted)
-    
-    length_bytes = sock.recv(5)
-    response_length = int(length_bytes.decode('utf-8'))
-    response_data = sock.recv(response_length).decode('utf-8')
-    
-    status = response_data[5:7]
-    datos = response_data[7:]
-    
-    sock.close()
-    return status, json.loads(datos)
-
-# Probar registro
-status, resp = send_to_bus('regis', 'register', {
-    'nombre': 'Test User',
-    'correo': 'test@mail.com',
-    'password': '123456',
-    'tipo': 'ESTUDIANTE'
-})
-print(f"Register: {status} - {resp}")
-
-# Probar login
-status, resp = send_to_bus('regis', 'login', {
-    'correo': 'test@mail.com',
-    'password': '123456'
-})
-print(f"Login: {status} - {resp}")
-```
-
-Ejecutar:
-
-```bash
-cd backend
-python test_bus.py
-```
-
 ---
 
-## Notas Técnicas
+## 🔧 Notas Técnicas
 
 ### Características del Bus
 - **Puerto:** 5000 (TCP)
