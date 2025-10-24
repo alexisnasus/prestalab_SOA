@@ -219,8 +219,17 @@ def main():
             print(f"\n[REGIS] ===== Nueva transacción =====")
             print(f"[REGIS] Datos recibidos: {message_str!r}")
             
-            # Procesar la solicitud (los datos vienen directamente, sin prefijo de cliente)
-            status, response_data = handle_request(message_str)
+            # El bus envía: SSSSS + DATOS, necesitamos solo DATOS
+            # Quitar los primeros 5 caracteres (nombre del servicio)
+            if len(message_str) > 5:
+                message_data = message_str[5:]
+            else:
+                message_data = message_str
+            
+            print(f"[REGIS] Datos sin prefijo: {message_data!r}")
+            
+            # Procesar la solicitud
+            status, response_data = handle_request(message_data)
             
             # Enviar respuesta al bus
             send_response(sock, status, response_data)

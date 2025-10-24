@@ -35,6 +35,7 @@ class Usuario(Base):
 
     def to_dict(self):
         """Convierte el objeto Usuario a un diccionario, excluyendo el password"""
+        from datetime import datetime
         user_dict = {}
         for column in self.__table__.columns:
             # Usar el nombre de la columna en la base de datos, no el atributo del modelo
@@ -45,6 +46,9 @@ class Usuario(Base):
             # Obtener el valor del atributo correspondiente
             if hasattr(self, column.key):
                 value = getattr(self, column.key)
+                # Convertir datetime a string ISO format para serialización JSON
+                if isinstance(value, datetime):
+                    value = value.isoformat()
                 user_dict[db_column_name] = value
         
         return user_dict
