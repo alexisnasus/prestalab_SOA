@@ -19,8 +19,5 @@ RUN pip install --upgrade pip setuptools wheel && \
 COPY ./services/sugit/app.py    /app/app.py
 COPY ./services/sugit/models.py /app/models.py
 
-COPY ./bus_client.py     /app/bus_client.py
-COPY ./service_logger.py /app/service_logger.py
-
 # Arranque
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "app.py"]
