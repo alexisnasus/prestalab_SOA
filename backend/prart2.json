@@ -1,0 +1,90 @@
+[
+  {
+    "nombre": "Arduino Uno R4",
+    "id": 4,
+    "tarifa_atraso": 500.0,
+    "cantidad_max": 2,
+    "cantidad": 100,
+    "tipo": "EQUIPO_ELECTRONICO",
+    "valor": 24990.0,
+    "descripcion": "Microcontrolador ATmega4809 con conectividad USB-C",
+    "registro_instante": "2025-09-29T18:00:00"
+  },
+  {
+    "nombre": "Canon EOS R50",
+    "id": 6,
+    "tarifa_atraso": 500.0,
+    "cantidad_max": 1,
+    "cantidad": 10,
+    "tipo": "EQUIPO_ELECTRONICO",
+    "valor": 849990.0,
+    "descripcion": "CÃ¡mara mirrorless APS-C con grabaciÃ³n 4K 30fps",
+    "registro_instante": "2025-09-29T18:10:00"
+  },
+  {
+    "nombre": "Kindle Paperwhite 2023",
+    "id": 8,
+    "tarifa_atraso": 500.0,
+    "cantidad_max": 1,
+    "cantidad": 30,
+    "tipo": "EQUIPO_ELECTRONICO",
+    "valor": 139990.0,
+    "descripcion": "Pantalla de 6.8\" con luz cÃ¡lida ajustable",
+    "registro_instante": "2025-09-29T18:20:00"
+  },
+  {
+    "nombre": "Lenovo ThinkPad X1",
+    "id": 2,
+    "tarifa_atraso": 500.0,
+    "cantidad_max": 1,
+    "cantidad": 20,
+    "tipo": "EQUIPO_ELECTRONICO",
+    "valor": 1839000.0,
+    "descripcion": "Intel Ultra 7 258V (Beats U7 165), 14\" 2.8K (2880 x 1800)",
+    "registro_instante": "2025-09-29T17:39:40"
+  },
+  {
+    "nombre": "Logitech MX Master 3S",
+    "id": 7,
+    "tarifa_atraso": 500.0,
+    "cantidad_max": 2,
+    "cantidad": 60,
+    "tipo": "EQUIPO_ELECTRONICO",
+    "valor": 89990.0,
+    "descripcion": "Mouse inalÃ¡mbrico avanzado con carga USB-C",
+    "registro_instante": "2025-09-29T18:15:00"
+  },
+  {
+    "nombre": "Raspberry Pi 4",
+    "id": 1,
+    "tarifa_atraso": 500.0,
+    "cantidad_max": 1,
+    "cantidad": 50,
+    "tipo": "EQUIPO_ELECTRONICO",
+    "valor": 64990.0,
+    "descripcion": "Broadcom BCM2711, quad-core Cortex-A72 (ARM v8) SoC de 64 bits @ 1. 5 GHz2",
+    "registro_instante": "2025-09-29T17:30:40"
+  },
+  {
+    "nombre": "Samsung Galaxy Tab S9",
+    "id": 5,
+    "tarifa_atraso": 500.0,
+    "cantidad_max": 1,
+    "cantidad": 15,
+    "tipo": "EQUIPO_ELECTRONICO",
+    "valor": 899990.0,
+    "descripcion": "Pantalla AMOLED 11\" con Snapdragon 8 Gen 2",
+    "registro_instante": "2025-09-29T18:05:00"
+  },
+  {
+    "nombre": "TP-Link AX1800",
+    "id": 3,
+    "tarifa_atraso": 500.0,
+    "cantidad_max": 1,
+    "cantidad": 40,
+    "tipo": "EQUIPO_ELECTRONICO",
+    "valor": 52990.0,
+    "descripcion": "WiFi 6 Router V4 (Archer AX21)",
+    "registro_instante": "2025-09-29T17:41:48"
+  }
+]

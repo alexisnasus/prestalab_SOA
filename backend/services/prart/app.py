@@ -1,369 +1,475 @@
-from fastapi import FastAPI, HTTPException, Query, Path, Body, status
-from fastapi.responses import JSONResponse
-from sqlalchemy import create_engine, text, bindparam
-from sqlalchemy.exc import SQLAlchemyError
-import os
+import socket
+import json
 from datetime import datetime, timedelta
-from typing import Optional
-import sys
-from pydantic import BaseModel, Field
-sys.path.append('/app')  # Para importar bus_client desde el contenedor
-from bus_client import register_service
-from service_logger import create_service_logger
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy import func
+from models import (
+    get_db, Item, Usuario, Solicitud, ItemSolicitud, Prestamo, Ventana, ItemExistencia
+)
 
-app = FastAPI(title="Servicio de gestión de Préstamos & Artículos")
+SERVICE_NAME = "prart"
+BUS_ADDRESS = ('bus', 5000)
 
-DATABASE_URL = os.getenv("DATABASE_URL")
-engine = create_engine(DATABASE_URL, echo=True, future=True)
+def send_response(sock, status, data):
+    """
+    Envía una respuesta al bus siguiendo el protocolo:
+    NNNNNSSSSSSTDATOS
+    donde:
+    - NNNNN: longitud de lo que sigue (5 dígitos)
+    - SSSSS: nombre del servicio (5 caracteres, padded)
+    - ST: status OK o NK (2 caracteres)
+    - DATOS: datos de respuesta
+    """
+    service_padded = SERVICE_NAME.ljust(5)[:5]
+    message = f"{service_padded}{status}{data}"
+    message_len = len(message)
+    formatted_message = f"{message_len:05d}{message}".encode('utf-8')
+    print(f"[PRART] Enviando respuesta: {formatted_message!r}")
+    sock.sendall(formatted_message)
 
-# Crear logger para este servicio
-logger = create_service_logger("prart")
-
-# ============================================================================
-# REGISTRO EN EL BUS (SOA)
-# ============================================================================
-
-@app.on_event("startup")
-async def startup():
-    """Registra el servicio en el bus al iniciar"""
-    logger.startup("http://prart:8000")
-    
-    await register_service(
-        app=app,
-        service_name="prart",
-        service_url="http://prart:8000",
-        description="Gestión de préstamos y artículos del catálogo",
-        version="1.0.0"
-    )
-    
-    logger.registered(os.getenv("BUS_URL", "http://bus:8000"))
-
-# ============================================================================
-# ENDPOINTS
-# ============================================================================
-
-@app.get("/")
-def root():
-    return {"message": "Servicio PRART disponible"}
-
-# Obtener items
-@app.get("/items")
-def buscar_items(
-    nombre: str = Query(None),
-    tipo: str = Query(None)
-):
-    logger.request_received("GET", "/items", {"nombre": nombre, "tipo": tipo})
+def handle_request(data: str):
+    """
+    Procesa el request y llama a la función de negocio correspondiente.
+    Formato esperado: OPERACION {json_payload}
+    """
     try:
-        query = "SELECT * FROM item WHERE 1=1"
-        params = {}
+        parts = data.split(' ', 1)
+        operation = parts[0]
+        payload_str = parts[1] if len(parts) > 1 else '{}'
+        payload = json.loads(payload_str)
+
+        print(f"[PRART] Operación: {operation}")
+        print(f"[PRART] Payload: {payload}")
+
+        db_session = next(get_db())
+
+        if operation == "get_all_items":
+            return obtener_todos_los_items(db_session)
+        elif operation == "search_items":
+            return buscar_items(payload, db_session)
+        elif operation == "get_solicitudes":
+            return obtener_solicitudes_usuario(payload, db_session)
+        elif operation == "create_solicitud":
+            return crear_solicitud(payload, db_session)
+        elif operation == "create_reserva":
+            return crear_reserva(payload, db_session)
+        elif operation == "cancel_reserva":
+            return cancelar_reserva(payload, db_session)
+        elif operation == "create_prestamo":
+            return registrar_prestamo(payload, db_session)
+        elif operation == "create_devolucion":
+            return registrar_devolucion(payload, db_session)
+        elif operation == "renovar_prestamo":
+            return renovar_prestamo(payload, db_session)
+        elif operation == "update_item_estado":
+            return actualizar_estado(payload, db_session)
+        else:
+            return "NK", json.dumps({"error": f"Operación desconocida: {operation}"})
+
+    except json.JSONDecodeError:
+        return "NK", json.dumps({"error": "Payload no es un JSON válido"})
+    except IndexError:
+        return "NK", json.dumps({"error": "Formato inválido. Use: OPERACION {json_payload}"})
+    except Exception as e:
+        print(f"[PRART] Error inesperado: {e}")
+        return "NK", json.dumps({"error": f"Error interno: {str(e)}"})
+
+# --- Lógica de Negocio ---
+
+def obtener_todos_los_items(db: Session):
+    """Obtiene todos los artículos del catálogo sin filtros"""
+    try:
+        items = db.query(Item).order_by(Item.nombre).all()
+        items_data = [
+            {
+                "id": item.id,
+                "nombre": item.nombre,
+                "tipo": item.tipo,
+                "descripcion": item.descripcion,
+                "cantidad": item.cantidad,
+                "cantidad_max": item.cantidad_max,
+                "valor": float(item.valor),
+                "tarifa_atraso": float(item.tarifa_atraso)
+            }
+            for item in items
+        ]
+        return "OK", json.dumps({"total": len(items_data), "items": items_data})
+    except SQLAlchemyError as e:
+        return "NK", json.dumps({"error": f"Error al obtener items: {str(e)}"})
+
+def buscar_items(payload: dict, db: Session):
+    """Busca artículos con filtros opcionales"""
+    try:
+        nombre = payload.get("nombre")
+        tipo = payload.get("tipo")
+        
+        query = db.query(Item)
         if nombre:
-            query += " AND nombre LIKE :nombre"
-            params["nombre"] = f"%{nombre}%"
+            query = query.filter(Item.nombre.like(f"%{nombre}%"))
         if tipo:
-            query += " AND tipo = :tipo"
-            params["tipo"] = tipo
-
-        logger.db_query(query, params)
+            query = query.filter(Item.tipo == tipo)
         
-        with engine.connect() as conn:
-            result = conn.execute(text(query), params).mappings().all()
+        items = query.all()
+        items_data = [
+            {
+                "id": item.id,
+                "nombre": item.nombre,
+                "tipo": item.tipo,
+                "descripcion": item.descripcion,
+                "cantidad": item.cantidad,
+                "cantidad_max": item.cantidad_max,
+                "valor": float(item.valor),
+                "tarifa_atraso": float(item.tarifa_atraso)
+            }
+            for item in items
+        ]
+        return "OK", json.dumps({"total": len(items_data), "items": items_data})
+    except SQLAlchemyError as e:
+        return "NK", json.dumps({"error": f"Error al buscar items: {str(e)}"})
+
+def crear_reserva(payload: dict, db: Session):
+    """Crea una reserva (ventana de tiempo para un préstamo)"""
+    try:
+        solicitud_id = payload.get("solicitud_id")
+        item_existencia_id = payload.get("item_existencia_id")
+        inicio_str = payload.get("inicio")
+        fin_str = payload.get("fin")
         
-        logger.response_sent(200, "Items obtenidos", f"Total: {len(result)}")
-        return result
-    except SQLAlchemyError as e:
-        logger.error("SQLAlchemyError", str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        if not all([solicitud_id, item_existencia_id, inicio_str, fin_str]):
+            return "NK", json.dumps({"error": "Faltan campos requeridos"})
+        
+        inicio = datetime.fromisoformat(inicio_str.replace('Z', '+00:00'))
+        fin = datetime.fromisoformat(fin_str.replace('Z', '+00:00'))
+        
+        if fin <= inicio:
+            return "NK", json.dumps({"error": "La fecha de fin debe ser mayor a la fecha de inicio"})
 
-# Registrar reserva con ventana
-@app.post("/reservas", status_code=status.HTTP_201_CREATED)
-def crear_reserva(
-    solicitud_id: int = Body(...),
-    item_existencia_id: int = Body(...),
-    inicio: str = Body(...),
-    fin: str = Body(...)
-):
-    try:
-        inicio_dt = datetime.fromisoformat(inicio)
-        fin_dt = datetime.fromisoformat(fin)
-        if fin_dt <= inicio_dt:
-            raise HTTPException(status_code=400, detail="La fecha de fin debe ser mayor a la fecha de inicio")
-
-        with engine.begin() as conn:
-            query = """
-            INSERT INTO ventana (solicitud_id, item_existencia_id, inicio, fin)
-            VALUES (:solicitud_id, :item_existencia_id, :inicio, :fin)
-            """
-            conn.execute(
-                text(query),
-                {"solicitud_id": solicitud_id, "item_existencia_id": item_existencia_id, "inicio": inicio_dt, "fin": fin_dt}
-            )
-        return {"message": "Reserva creada exitosamente"}
-    except SQLAlchemyError as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-# Cancelar/caducar reserva
-@app.delete("/reservas/{reserva_id}", status_code=status.HTTP_200_OK)
-def cancelar_reserva(reserva_id: int = Path(...)):
-    try:
-        with engine.begin() as conn:
-            query = "DELETE FROM ventana WHERE id = :reserva_id"
-            result = conn.execute(text(query), {"reserva_id": reserva_id})
-        if result.rowcount == 0:
-            raise HTTPException(status_code=404, detail="Reserva no encontrada")
-        return {"message": "Reserva cancelada"}
-    except SQLAlchemyError as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-class SolicitudCreate(BaseModel):
-    usuario_id: Optional[int] = Field(default=None, description="ID del usuario solicitante")
-    correo: Optional[str] = Field(default=None, description="Correo del usuario solicitante")
-    tipo: str = Field(..., min_length=1, description="Tipo de solicitud")
-
-
-# Obtener solicitudes de un usuario
-@app.get("/solicitudes", status_code=status.HTTP_200_OK)
-def obtener_solicitudes_usuario(
-    usuario_id: Optional[int] = Query(None, ge=1),
-    correo: Optional[str] = Query(None)
-):
-    filtros = {"usuario_id": usuario_id, "correo": correo}
-    logger.request_received("GET", "/solicitudes", filtros)
-
-    correo_norm = correo.strip().lower() if correo else None
-
-    if usuario_id is None and correo_norm is None:
-        logger.response_sent(422, "Debe proporcionar 'usuario_id' o 'correo'")
-        raise HTTPException(status_code=422, detail="Debe proporcionar 'usuario_id' o 'correo'")
-
-    try:
-        with engine.connect() as conn:
-            # Resolver usuario
-            resolved_user_id: Optional[int] = None
-            if usuario_id is not None and correo_norm is not None:
-                lookup = text("SELECT id FROM usuario WHERE id = :usuario_id AND LOWER(correo) = :correo")
-                params = {"usuario_id": usuario_id, "correo": correo_norm}
-                logger.db_query(str(lookup), params)
-                match = conn.execute(lookup, params).mappings().first()
-                if not match:
-                    logger.response_sent(400, "usuario_id no coincide con el correo proporcionado")
-                    raise HTTPException(status_code=400, detail="El usuario_id no coincide con el correo proporcionado")
-                resolved_user_id = usuario_id
-            elif usuario_id is not None:
-                lookup = text("SELECT id FROM usuario WHERE id = :usuario_id")
-                params = {"usuario_id": usuario_id}
-                logger.db_query(str(lookup), params)
-                match = conn.execute(lookup, params).mappings().first()
-                if not match:
-                    logger.response_sent(404, f"Usuario {usuario_id} no encontrado")
-                    raise HTTPException(status_code=404, detail="Usuario no encontrado")
-                resolved_user_id = usuario_id
-            else:
-                lookup = text("SELECT id FROM usuario WHERE LOWER(correo) = :correo")
-                params = {"correo": correo_norm}
-                logger.db_query(str(lookup), params)
-                match = conn.execute(lookup, params).mappings().first()
-                if not match:
-                    logger.response_sent(404, f"Usuario con correo {correo_norm} no encontrado")
-                    raise HTTPException(status_code=404, detail="No se encontró un usuario con ese correo")
-                resolved_user_id = match["id"]
-
-            solicitudes_query = text(
-                """
-                SELECT 
-                    s.id, s.usuario_id, s.tipo, s.estado, s.registro_instante,
-                    COALESCE(i.nombre, i_prestamo.nombre, i_ventana.nombre) AS nombre_articulo
-                FROM solicitud s
-                LEFT JOIN item_solicitud si ON s.id = si.solicitud_id
-                LEFT JOIN item i ON si.item_id = i.id
-                LEFT JOIN prestamo p ON s.id = p.solicitud_id
-                LEFT JOIN item_existencia ie_prestamo ON p.item_existencia_id = ie_prestamo.id
-                LEFT JOIN item i_prestamo ON ie_prestamo.item_id = i_prestamo.id
-                LEFT JOIN ventana v ON s.id = v.solicitud_id
-                LEFT JOIN item_existencia ie_ventana ON v.item_existencia_id = ie_ventana.id
-                LEFT JOIN item i_ventana ON ie_ventana.item_id = i_ventana.id
-                WHERE s.usuario_id = :usuario_id
-                GROUP BY s.id
-                ORDER BY s.registro_instante DESC
-                """
-            )
-            logger.db_query(str(solicitudes_query), {"usuario_id": resolved_user_id})
-            solicitudes_rows = conn.execute(solicitudes_query, {"usuario_id": resolved_user_id}).mappings().all()
-
-            solicitudes = []
-            for row in solicitudes_rows:
-                solicitud = dict(row)
-                registro = solicitud.get("registro_instante")
-                if isinstance(registro, datetime):
-                    solicitud["registro_instante"] = registro.isoformat()
-                
-                # El nombre del artículo ahora viene en la consulta principal
-                nombre_articulo = solicitud.pop("nombre_articulo", None)
-                solicitud["items"] = []
-                if nombre_articulo:
-                    solicitud["items"].append({"nombre": nombre_articulo})
-                
-                solicitudes.append(solicitud)
-
-        respuesta = {
-            "usuario_id": resolved_user_id,
-            "total": len(solicitudes),
-            "solicitudes": solicitudes
-        }
-        logger.response_sent(200, "Solicitudes obtenidas", f"Total: {len(solicitudes)}")
-        return JSONResponse(content=respuesta)
-
-    except HTTPException:
-        raise
-    except SQLAlchemyError as e:
-        logger.error("SQLAlchemyError", str(e))
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# Registrar solicitud
-@app.post("/solicitudes", status_code=status.HTTP_201_CREATED)
-def crear_solicitud(datos: SolicitudCreate = Body(...)):
-    payload = datos.model_dump(exclude_none=True)
-    logger.request_received("POST", "/solicitudes", payload)
-
-    try:
-        usuario_id = datos.usuario_id
-        correo = datos.correo.strip().lower() if datos.correo else None
-
-        if usuario_id is None and correo is None:
-            raise HTTPException(status_code=422, detail="Debe proporcionar 'usuario_id' o 'correo'")
-
-        if usuario_id is not None and correo is not None:
-            lookup_query = text("SELECT id FROM usuario WHERE id = :usuario_id AND LOWER(correo) = :correo")
-            params = {"usuario_id": usuario_id, "correo": correo}
-            logger.db_query(str(lookup_query), params)
-            with engine.connect() as conn:
-                match = conn.execute(lookup_query, params).mappings().first()
-            if not match:
-                raise HTTPException(status_code=400, detail="El usuario_id no coincide con el correo proporcionado")
-
-        if usuario_id is None:
-            lookup_query = text("SELECT id FROM usuario WHERE LOWER(correo) = :correo")
-            params = {"correo": correo}
-            logger.db_query(str(lookup_query), params)
-            with engine.connect() as conn:
-                user = conn.execute(lookup_query, params).mappings().first()
-            if not user:
-                raise HTTPException(status_code=404, detail="No se encontró un usuario con ese correo")
-            usuario_id = user["id"]
-            payload["usuario_id"] = usuario_id
-
-        insert_query = text(
-            """
-            INSERT INTO solicitud (usuario_id, tipo, estado, registro_instante)
-            VALUES (:usuario_id, :tipo, 'PENDIENTE', NOW())
-            """
+        nueva_reserva = Ventana(
+            solicitud_id=solicitud_id,
+            item_existencia_id=item_existencia_id,
+            inicio=inicio,
+            fin=fin
         )
-        insert_params = {"usuario_id": usuario_id, "tipo": datos.tipo}
-        logger.db_query(str(insert_query), insert_params)
+        db.add(nueva_reserva)
+        db.commit()
+        db.refresh(nueva_reserva)
+        
+        return "OK", json.dumps({
+            "message": "Reserva creada exitosamente",
+            "reserva_id": nueva_reserva.id
+        })
+    except SQLAlchemyError as e:
+        db.rollback()
+        return "NK", json.dumps({"error": f"Error al crear la reserva: {str(e)}"})
 
-        with engine.begin() as conn:
-            result = conn.execute(insert_query, insert_params)
-            solicitud_id = result.lastrowid
+def cancelar_reserva(payload: dict, db: Session):
+    """Cancela una reserva"""
+    try:
+        reserva_id = payload.get("reserva_id")
+        if not reserva_id:
+            return "NK", json.dumps({"error": "Falta reserva_id"})
+        
+        reserva = db.query(Ventana).filter(Ventana.id == reserva_id).first()
+        if not reserva:
+            return "NK", json.dumps({"error": "Reserva no encontrada"})
+        
+        db.delete(reserva)
+        db.commit()
+        
+        return "OK", json.dumps({"message": "Reserva cancelada"})
+    except SQLAlchemyError as e:
+        db.rollback()
+        return "NK", json.dumps({"error": f"Error al cancelar la reserva: {str(e)}"})
+
+def obtener_solicitudes_usuario(payload: dict, db: Session):
+    """Obtiene las solicitudes de un usuario"""
+    try:
+        usuario_id = payload.get("usuario_id")
+        correo = payload.get("correo")
+
+        if not usuario_id and not correo:
+            return "NK", json.dumps({"error": "Debe proporcionar 'usuario_id' o 'correo'"})
+
+        user_query = db.query(Usuario)
+        if usuario_id and correo:
+            user = user_query.filter(Usuario.id == usuario_id, func.lower(Usuario.correo) == correo.lower()).first()
+            if not user:
+                return "NK", json.dumps({"error": "El usuario_id no coincide con el correo proporcionado"})
+        elif usuario_id:
+            user = user_query.filter(Usuario.id == usuario_id).first()
+        else:
+            user = user_query.filter(func.lower(Usuario.correo) == correo.lower()).first()
+
+        if not user:
+            return "NK", json.dumps({"error": "Usuario no encontrado"})
+
+        solicitudes = db.query(Solicitud).filter(Solicitud.usuario_id == user.id)\
+            .options(
+                joinedload(Solicitud.items).joinedload(ItemSolicitud.item),
+                joinedload(Solicitud.prestamos).joinedload(Prestamo.item_existencia).joinedload(ItemExistencia.item),
+                joinedload(Solicitud.ventanas).joinedload(Ventana.item_existencia).joinedload(ItemExistencia.item)
+            ).order_by(Solicitud.registro_instante.desc()).all()
+
+        response_data = []
+        for s in solicitudes:
+            item_nombres = set()
+            for item_sol in s.items:
+                item_nombres.add(item_sol.item.nombre)
+            for prestamo in s.prestamos:
+                item_nombres.add(prestamo.item_existencia.item.nombre)
+            for ventana in s.ventanas:
+                item_nombres.add(ventana.item_existencia.item.nombre)
+
+            response_data.append({
+                "id": s.id,
+                "usuario_id": s.usuario_id,
+                "tipo": s.tipo,
+                "estado": s.estado,
+                "registro_instante": s.registro_instante.isoformat(),
+                "items": [{"nombre": nombre} for nombre in item_nombres]
+            })
+        
+        respuesta = {
+            "usuario_id": user.id,
+            "total": len(response_data),
+            "solicitudes": response_data
+        }
+        
+        return "OK", json.dumps(respuesta)
+
+    except SQLAlchemyError as e:
+        return "NK", json.dumps({"error": f"Error al obtener solicitudes: {str(e)}"})
+
+def crear_solicitud(payload: dict, db: Session):
+    """Crea una solicitud de préstamo"""
+    try:
+        usuario_id = payload.get("usuario_id")
+        correo = payload.get("correo")
+        tipo = payload.get("tipo")
+
+        if not tipo:
+            return "NK", json.dumps({"error": "Falta el campo 'tipo'"})
+
+        if not usuario_id and not correo:
+            return "NK", json.dumps({"error": "Debe proporcionar 'usuario_id' o 'correo'"})
+
+        user_query = db.query(Usuario)
+        if usuario_id and correo:
+            user = user_query.filter(Usuario.id == usuario_id, func.lower(Usuario.correo) == correo.lower()).first()
+            if not user:
+                return "NK", json.dumps({"error": "El usuario_id no coincide con el correo proporcionado"})
+        elif usuario_id:
+            user = user_query.filter(Usuario.id == usuario_id).first()
+        else:
+            user = user_query.filter(func.lower(Usuario.correo) == correo.lower()).first()
+        
+        if not user:
+            return "NK", json.dumps({"error": "Usuario no encontrado"})
+
+        nueva_solicitud = Solicitud(
+            usuario_id=user.id,
+            tipo=tipo,
+            estado='PENDIENTE',
+            registro_instante=datetime.now()
+        )
+        db.add(nueva_solicitud)
+        db.commit()
+        db.refresh(nueva_solicitud)
 
         response_payload = {
-            "message": "Reserva creada exitosamente",
-            "solicitud_id": solicitud_id,
-            "usuario_id": usuario_id,
+            "message": "Solicitud creada exitosamente",
+            "solicitud_id": nueva_solicitud.id,
+            "usuario_id": user.id
         }
-        logger.response_sent(201, "Solicitud creada", f"ID: {solicitud_id}")
-        return response_payload
-    except HTTPException:
-        raise
+        
+        return "OK", json.dumps(response_payload)
     except SQLAlchemyError as e:
-        logger.error("SQLAlchemyError", str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        db.rollback()
+        return "NK", json.dumps({"error": f"Error al crear la solicitud: {str(e)}"})
 
-# Registrar préstamo
-@app.post("/prestamos", status_code=status.HTTP_201_CREATED)
-def registrar_prestamo(
-    solicitud_id: int = Body(...),
-    item_existencia_id: int = Body(...),
-    comentario: str = Body(None)
-):
-    logger.request_received("POST", "/prestamos", {"solicitud_id": solicitud_id, "item_existencia_id": item_existencia_id})
+def registrar_prestamo(payload: dict, db: Session):
+    """Registra un nuevo préstamo"""
     try:
+        solicitud_id = payload.get("solicitud_id")
+        item_existencia_id = payload.get("item_existencia_id")
+        comentario = payload.get("comentario")
+        
+        if not solicitud_id or not item_existencia_id:
+            return "NK", json.dumps({"error": "Faltan campos requeridos"})
+        
         fecha_prestamo = datetime.now()
-        fecha_devolucion = fecha_prestamo + timedelta(days=30)
+        nuevo_prestamo = Prestamo(
+            item_existencia_id=item_existencia_id,
+            solicitud_id=solicitud_id,
+            fecha_prestamo=fecha_prestamo,
+            fecha_devolucion=fecha_prestamo + timedelta(days=30),
+            estado='ACTIVO',
+            renovaciones_realizadas=0,
+            registro_instante=datetime.now(),
+            comentario=comentario
+        )
+        db.add(nuevo_prestamo)
+        db.commit()
+        db.refresh(nuevo_prestamo)
         
-        query = text("""
-            INSERT INTO prestamo (item_existencia_id, solicitud_id, fecha_prestamo, fecha_devolucion, estado, renovaciones_realizadas, registro_instante, comentario)
-            VALUES (:item_existencia_id, :solicitud_id, :fecha_prestamo, :fecha_devolucion, 'ACTIVO', 0, NOW(), :comentario)
-        """)
-        
-        logger.db_query(str(query), {"solicitud_id": solicitud_id, "item_existencia_id": item_existencia_id})
-        
-        with engine.begin() as conn:
-            conn.execute(
-                query,
-                {"item_existencia_id": item_existencia_id, "solicitud_id": solicitud_id, "fecha_prestamo": fecha_prestamo, "fecha_devolucion": fecha_devolucion, "comentario": comentario}
-            )
-        
-        logger.response_sent(201, "Préstamo registrado", f"Solicitud: {solicitud_id}")
-        return {"message": "Préstamo registrado"}
+        return "OK", json.dumps({
+            "message": "Préstamo registrado",
+            "prestamo_id": nuevo_prestamo.id
+        })
     except SQLAlchemyError as e:
-        logger.error("SQLAlchemyError", str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        db.rollback()
+        return "NK", json.dumps({"error": f"Error al registrar el préstamo: {str(e)}"})
 
-# Registrar devolución de ítem
-@app.post("/devoluciones", status_code=status.HTTP_200_OK)
-def registrar_devolucion(
-    prestamo_id: int = Body(...),
-    comentario: str = Body(None)
-):
+def registrar_devolucion(payload: dict, db: Session):
+    """Registra la devolución de un préstamo"""
     try:
-        with engine.begin() as conn:
-            query = """
-            UPDATE prestamo
-            SET estado = 'DEVUELTO', comentario = :comentario
-            WHERE id = :prestamo_id
-            """
-            result = conn.execute(text(query), {"prestamo_id": prestamo_id, "comentario": comentario})
-        if result.rowcount == 0:
-            raise HTTPException(status_code=404, detail="Préstamo no encontrado o no activo")
-        return {"message": "Devolución registrada"}
+        prestamo_id = payload.get("prestamo_id")
+        comentario = payload.get("comentario")
+        
+        if not prestamo_id:
+            return "NK", json.dumps({"error": "Falta prestamo_id"})
+        
+        prestamo = db.query(Prestamo).filter(Prestamo.id == prestamo_id).first()
+        if not prestamo:
+            return "NK", json.dumps({"error": "Préstamo no encontrado"})
+        
+        prestamo.estado = 'DEVUELTO'
+        prestamo.comentario = comentario
+        prestamo.fecha_devolucion = datetime.now()
+        db.commit()
+        
+        return "OK", json.dumps({"message": "Devolución registrada"})
     except SQLAlchemyError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        db.rollback()
+        return "NK", json.dumps({"error": f"Error al registrar la devolución: {str(e)}"})
 
-# Renovar préstamo
-@app.put("/prestamos/{prestamo_id}/renovar", status_code=status.HTTP_200_OK)
-def renovar_prestamo(prestamo_id: int = Path(...)):
+def renovar_prestamo(payload: dict, db: Session):
+    """Renueva un préstamo existente"""
     try:
-        fecha_prestamo = datetime.now()
-        fecha_devolucion = fecha_prestamo + timedelta(days=30)
-        with engine.begin() as conn:
-            query = """
-            UPDATE prestamo
-            SET renovaciones_realizadas = renovaciones_realizadas + 1, fecha_prestamo = :fecha_prestamo, fecha_devolucion = :fecha_devolucion, comentario= 'Préstamo renovado', estado= 'ACTIVO'
-            WHERE id = :prestamo_id
-            """
-            result = conn.execute(text(query), {"prestamo_id": prestamo_id, "fecha_prestamo": fecha_prestamo, "fecha_devolucion": fecha_devolucion})
-        if result.rowcount == 0:
-            raise HTTPException(status_code=404, detail="Préstamo no encontrado")
-        return {"message": "Préstamo renovado"}
+        prestamo_id = payload.get("prestamo_id")
+        
+        if not prestamo_id:
+            return "NK", json.dumps({"error": "Falta prestamo_id"})
+        
+        prestamo = db.query(Prestamo).filter(Prestamo.id == prestamo_id).first()
+        if not prestamo:
+            return "NK", json.dumps({"error": "Préstamo no encontrado"})
+
+        prestamo.renovaciones_realizadas += 1
+        prestamo.fecha_prestamo = datetime.now()
+        prestamo.fecha_devolucion = datetime.now() + timedelta(days=30)
+        prestamo.comentario = 'Préstamo renovado'
+        prestamo.estado = 'ACTIVO'
+        db.commit()
+        
+        return "OK", json.dumps({
+            "message": "Préstamo renovado",
+            "renovaciones": prestamo.renovaciones_realizadas
+        })
     except SQLAlchemyError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        db.rollback()
+        return "NK", json.dumps({"error": f"Error al renovar el préstamo: {str(e)}"})
 
-# Actualizar estado de item/existencia
-@app.put("/items/{existencia_id}/estado", status_code=status.HTTP_200_OK)
-def actualizar_estado(
-    existencia_id: int = Path(...),
-    body: dict = Body(...)
-):
-    estado = body.get("estado")
-    if not estado:
-        raise HTTPException(status_code=400, detail="Falta el campo 'estado'")
-
+def actualizar_estado(payload: dict, db: Session):
+    """Actualiza el estado de un item de existencia"""
     try:
-        with engine.begin() as conn:
-            query = "UPDATE item_existencia SET estado = :estado WHERE id = :existencia_id"
-            result = conn.execute(text(query), {"estado": estado, "existencia_id": existencia_id})
-        if result.rowcount == 0:
-            raise HTTPException(status_code=404, detail="Ítem no encontrado")
-        return {"message": f"Estado actualizado a {estado}"}
+        existencia_id = payload.get("existencia_id")
+        estado = payload.get("estado")
+        
+        if not existencia_id or not estado:
+            return "NK", json.dumps({"error": "Faltan campos requeridos"})
+        
+        item_existencia = db.query(ItemExistencia).filter(ItemExistencia.id == existencia_id).first()
+        if not item_existencia:
+            return "NK", json.dumps({"error": "Ítem no encontrado"})
+        
+        item_existencia.estado = estado
+        db.commit()
+        
+        return "OK", json.dumps({"message": f"Estado actualizado a {estado}"})
     except SQLAlchemyError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        db.rollback()
+        return "NK", json.dumps({"error": f"Error al actualizar el estado: {str(e)}"})
+
+# --- Main Loop ---
+
+def main():
+    """
+    Función principal del servicio.
+    1. Conecta al bus
+    2. Se registra como servicio usando sinit
+    3. Escucha transacciones en un bucle infinito
+    4. Procesa cada transacción y responde
+    """
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        print(f"[PRART] Conectando al bus en {BUS_ADDRESS}...")
+        sock.connect(BUS_ADDRESS)
+
+        # Registrar el servicio usando sinit
+        init_message = f"sinit{SERVICE_NAME}"
+        init_message_len = len(init_message)
+        formatted_init_message = f"{init_message_len:05d}{init_message}".encode('utf-8')
+        print(f"[PRART] Registrando servicio: {formatted_init_message!r}")
+        sock.sendall(formatted_init_message)
+
+        # Esperar confirmación de registro
+        length_bytes = sock.recv(5)
+        if length_bytes:
+            amount_expected = int(length_bytes.decode('utf-8'))
+            confirmation = sock.recv(amount_expected).decode('utf-8')
+            print(f"[PRART] Confirmación recibida: {confirmation!r}")
+
+        # Bucle principal: escuchar transacciones
+        print(f"[PRART] Servicio '{SERVICE_NAME}' listo. Esperando transacciones...\n")
+        
+        while True:
+            # Leer longitud del mensaje (5 dígitos)
+            length_bytes = sock.recv(5)
+            if not length_bytes:
+                print("[PRART] Conexión cerrada por el bus.")
+                break
+            
+            amount_expected = int(length_bytes.decode('utf-8'))
+            
+            # Leer el mensaje completo
+            data_received = b''
+            while len(data_received) < amount_expected:
+                chunk = sock.recv(amount_expected - len(data_received))
+                if not chunk:
+                    break
+                data_received += chunk
+            
+            message_str = data_received.decode('utf-8')
+            print(f"\n[PRART] ===== Nueva transacción =====")
+            print(f"[PRART] Datos recibidos: {message_str!r}")
+            
+            # El bus envía: SSSSS + DATOS, necesitamos solo DATOS
+            # Quitar los primeros 5 caracteres (nombre del servicio)
+            if len(message_str) > 5:
+                message_data = message_str[5:]
+            else:
+                message_data = message_str
+            
+            print(f"[PRART] Datos sin prefijo: {message_data!r}")
+            
+            # Procesar la solicitud
+            status, response_data = handle_request(message_data)
+            
+            # Enviar respuesta al bus
+            send_response(sock, status, response_data)
+            print(f"[PRART] Respuesta enviada con status: {status}")
+
+    except ConnectionRefusedError:
+        print("[PRART] ERROR: No se pudo conectar al bus. Verifique que esté corriendo.")
+    except Exception as e:
+        print(f"[PRART] ERROR: {e}")
+        import traceback
+        traceback.print_exc()
+    finally:
+        print("[PRART] Cerrando socket.")
+        sock.close()
+
+if __name__ == "__main__":
+    main()

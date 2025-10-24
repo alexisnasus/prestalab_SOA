@@ -63,11 +63,11 @@ CREATE TABLE usuario
     nombre           varchar(50)  not null,
     correo           varchar(50)  unique not null,
     tipo             varchar(20)  not null,
-    telefono         varchar(15)  not null,
+    telefono         varchar(15)  null default '',
     password         varchar(128) not null,
-    estado           varchar(20)  not null,
-    preferencias_notificacion int not null default 0,
-    registro_instante datetime     not null,
+    estado           varchar(20)  not null default 'ACTIVO',
+    preferencias_notificacion int not null default 1,
+    registro_instante datetime     not null default CURRENT_TIMESTAMP,
 
     primary key(id),
     unique(correo)

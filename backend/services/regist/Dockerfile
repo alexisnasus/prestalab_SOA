@@ -1,22 +1,22 @@
 FROM python:3.11-slim
 
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_DEFAULT_TIMEOUT=120 \
+    PIP_NO_CACHE_DIR=1
+
 WORKDIR /app
 
-# Copiar archivos necesarios
-COPY ./services/regist/app.py /app
-COPY ./bus_client.py /app/bus_client.py
-COPY ./service_logger.py /app/service_logger.py
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      build-essential libffi-dev pkg-config gcc \
+ && rm -rf /var/lib/apt/lists/*
 
-# Instalar dependencias del sistema necesarias para cryptography
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    libssl-dev \
-    libffi-dev \
-    pkg-config \
-    && rm -rf /var/lib/apt/lists/*
+COPY ./services/regist/requirements.txt /app/requirements.txt
 
-# Actualizar pip y luego instalar dependencias de Python
-RUN pip install --upgrade pip
-RUN pip install fastapi uvicorn sqlalchemy pymysql cryptography httpx colorama email-validator
+RUN pip install --upgrade pip setuptools wheel && \
+    (pip install --no-cache-dir -r requirements.txt || \
+     (sleep 5 && pip install --no-cache-dir -r requirements.txt))
 
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+COPY ./services/regist/app.py    /app/app.py
+COPY ./services/regist/models.py /app/models.py
+
+CMD ["python", "app.py"]
