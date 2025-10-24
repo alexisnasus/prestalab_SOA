@@ -93,8 +93,10 @@ def registrar_sugerencia(payload: dict, db: Session):
         
     except SQLAlchemyError as e:
         db.rollback()
-        return "NK", json.dumps({"error": "Error al registrar sugerencia"})
+        print(f"[SUGIT] SQLAlchemyError al registrar sugerencia: {e}")
+        return "NK", json.dumps({"error": f"Error al registrar sugerencia: {str(e)}"})
     except Exception as e:
+        print(f"[SUGIT] Exception al registrar sugerencia: {e}")
         return "NK", json.dumps({"error": f"Error al registrar sugerencia: {str(e)}"})
 
 def listar_sugerencias(payload: dict, db: Session):
@@ -119,8 +121,10 @@ def listar_sugerencias(payload: dict, db: Session):
         })
         
     except SQLAlchemyError as e:
-        return "NK", json.dumps({"error": "Error al listar sugerencias"})
+        print(f"[SUGIT] SQLAlchemyError al listar sugerencias: {e}")
+        return "NK", json.dumps({"error": f"Error al listar sugerencias: {str(e)}"})
     except Exception as e:
+        print(f"[SUGIT] Exception al listar sugerencias: {e}")
         return "NK", json.dumps({"error": f"Error al listar sugerencias: {str(e)}"})
 
 def aprobar_sugerencia(payload: dict, db: Session):
@@ -147,8 +151,10 @@ def aprobar_sugerencia(payload: dict, db: Session):
         
     except SQLAlchemyError as e:
         db.rollback()
-        return "NK", json.dumps({"error": "Error al aprobar sugerencia"})
+        print(f"[SUGIT] SQLAlchemyError al aprobar sugerencia: {e}")
+        return "NK", json.dumps({"error": f"Error al aprobar sugerencia: {str(e)}"})
     except Exception as e:
+        print(f"[SUGIT] Exception al aprobar sugerencia: {e}")
         return "NK", json.dumps({"error": f"Error al aprobar sugerencia: {str(e)}"})
 
 def rechazar_sugerencia(payload: dict, db: Session):
@@ -175,8 +181,10 @@ def rechazar_sugerencia(payload: dict, db: Session):
         
     except SQLAlchemyError as e:
         db.rollback()
-        return "NK", json.dumps({"error": "Error al rechazar sugerencia"})
+        print(f"[SUGIT] SQLAlchemyError al rechazar sugerencia: {e}")
+        return "NK", json.dumps({"error": f"Error al rechazar sugerencia: {str(e)}"})
     except Exception as e:
+        print(f"[SUGIT] Exception al rechazar sugerencia: {e}")
         return "NK", json.dumps({"error": f"Error al rechazar sugerencia: {str(e)}"})
 
 # --- Main Loop ---

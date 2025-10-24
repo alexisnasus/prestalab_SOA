@@ -1,5 +1,6 @@
 from sqlalchemy import Column, BigInteger, String, DateTime, func, ForeignKey, create_engine
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
+from datetime import datetime
 import os
 
 Base = declarative_base()
@@ -39,6 +40,6 @@ class Sugerencia(Base):
     usuario_id = Column(BigInteger, ForeignKey('usuario.id'), nullable=False)
     sugerencia = Column(String(100), nullable=False)
     estado = Column(String(20), nullable=False, default='PENDIENTE')
-    registro_instante = Column(DateTime, nullable=False, server_default=func.now())
+    registro_instante = Column(DateTime, nullable=False, default=datetime.now)
 
     usuario = relationship("Usuario", back_populates="sugerencias")
