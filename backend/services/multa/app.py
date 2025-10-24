@@ -216,8 +216,17 @@ def main():
             print(f"\n[MULTA] ===== Nueva transacción =====")
             print(f"[MULTA] Datos recibidos: {message_str!r}")
             
+            # El bus envía: SSSSS + DATOS, necesitamos solo DATOS
+            # Quitar los primeros 5 caracteres (nombre del servicio)
+            if len(message_str) > 5:
+                message_data = message_str[5:]
+            else:
+                message_data = message_str
+            
+            print(f"[MULTA] Datos sin prefijo: {message_data!r}")
+            
             # Procesar la solicitud
-            status, response_data = handle_request(message_str)
+            status, response_data = handle_request(message_data)
             
             # Enviar respuesta al bus
             send_response(sock, status, response_data)
