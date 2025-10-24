@@ -1,0 +1,901 @@
+\documentclass[10pt]{article}
+\usepackage[spanish]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage[lmargin=2cm, rmargin=2cm, top=2cm, bottom=2 cm]{geometry}
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\usepackage{tabularx}
+
+\usepackage[table,xcdraw]{xcolor}
+\fancyhead{}
+\fancyhead[R]{Facultad de Ingeniería y Ciencias \\ Instituto de Ciencias Básicas}
+\fancyhead[L]{\includegraphics[width=3.2cm]{img/udp_logo.png}}
+\usepackage{animate}
+\usepackage{enumerate}
+\usepackage{float}
+\usepackage{url}
+\usepackage{karnaugh-map}
+\usepackage{longtable}
+
+\fancyfoot{}
+\fancyfoot[R]{Página \thepage \hspace{0.02 cm}}
+\renewcommand{\headrulewidth}{0.9pt}
+\renewcommand{\footrulewidth}{0.5pt}
+
+\usepackage{listings}
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  columns=fullflexible
+}
+
+\usepackage{tabularx,booktabs,array}
+\newcommand{\NA}{---}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X} % última columna quebrable y alineada a la izquierda
+\setlength{\extrarowheight}{2pt}
+
+%New colors defined below
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+%Code listing style named "mystyle"
+\lstdefinestyle{mystyle}{
+  backgroundcolor=\color{backcolour},   commentstyle=\color{codegreen},
+  keywordstyle=\color{magenta},
+  numberstyle=\tiny\color{codegray},
+  stringstyle=\color{codepurple},
+  basicstyle=\ttfamily\footnotesize,
+  breakatwhitespace=false,
+  breaklines=true,
+  captionpos=b,
+  keepspaces=true,
+  numbers=left,
+  numbersep=5pt,
+  showspaces=false,
+  showstringspaces=false,
+  showtabs=false,
+  tabsize=2
+}
+\lstset{style=mystyle}
+
+\begin{document}
+\date{}
+\begin{titlepage}
+\begin{center}
+    \vspace*{\baselineskip}
+
+    {
+    \bf\fontsize{19}{0}{\selectfont{UNIVERSIDAD DIEGO PORTALES}}\\[0.5cm]
+    \fontsize{11}{0}{FACULTAD DE INGENIERÍA Y CIENCIAS}
+    }
+
+    \vspace*{0.5\baselineskip}
+    {
+    \bf\fontsize{11}{0}{\selectfont{ESCUELA DE INFORMÁTICA Y TELECOMUNICACIONES}}\\[0.35cm]
+    }
+
+    \vspace*{\baselineskip}
+    \includegraphics[scale=0.50]{img/udp_logo.png}
+    \vspace*{3\baselineskip}
+     \hrule height 0.5pt
+    \vspace{1mm}
+    \hrule height 1.5pt
+    \vspace*{1\baselineskip}
+
+    {
+    \bf\fontsize{15}{0}{\selectfont{Arquitectura de software \\[0.3cm] Sistema de préstamo de materiales}}
+    }
+    \vspace*{1\baselineskip}
+    \hrule height 0.5pt
+    \vspace{1mm}
+    \hrule height 1.5pt
+
+    \vspace*{4.5\baselineskip}
+
+    {
+     \bf\fontsize{14}{0}{\selectfont{Profesor:\\[0.3cm]
+}}
+
+\bf\fontsize{14}{0}{\selectfont{Juan Ricardo Giadach Giadach\\[0.5cm]
+}}
+   \bf\fontsize{12}{0}{\selectfont{Estudiantes:\\[0.3cm]}}
+   \bf\fontsize{12}{0}{\selectfont{Brayan Eduardo González Sánchez\\}}
+   \bf\fontsize{12}{0}{\selectfont{Rafael Eduardo Campos Sepúlveda\\}}
+   \bf\fontsize{12}{0}{\selectfont{Alejandro Ignacio Jara Vergara\\}}
+   \bf\fontsize{12}{0}{\selectfont{Alexis Agustín Lema González\\}}
+   }
+
+    \vfill
+    Santiago, Chile \hfill Agosto del 2025
+
+\end{center}
+\end{titlepage}
+\vspace*{\baselineskip}
+\tableofcontents
+\setcounter{page}{0}
+\thispagestyle{empty}
+\newpage
+
+\section{Descripción del sistema, la organización y el área}
+    \subsection*{Descripción del sistema}
+        \textbf{Nombre tentativo}: \emph{PrestaLab}.\\
+        \emph{PrestaLab} es un sistema que permite \textbf{buscar}, \textbf{reservar} y \textbf{prestar} materiales con trazabilidad de usuarios y estados. Integra lo siguente:
+        \begin{itemize}
+            \item \textbf{Búsqueda por filtro} por nombre, tipo, sede y estado (disponible, prestado, dañado, perdido).
+            \item \textbf{Reservas} con \emph{ventana de retiro} y caducidad automática si no se retira a tiempo.
+            \item \textbf{Préstamo presencial} con registro de responsable y fecha de devolución.
+            \item \textbf{Renovaciones} condicionadas a disponibilidad y máximos.
+            \item \textbf{Multas} por atraso y bloqueo automático por deuda sobre umbral.
+            \item \textbf{Sugerencias} para nuevos articulos. 
+            \item \textbf{Gestión de daños/pérdidas} con generación de cargos.
+            \item \textbf{Lista de espera} y \textbf{notificaciones} (recordatorios, atrasos, disponbilidad y avisos de caducidad).
+            \item \textbf{Reportes de circulación} y \textbf{exportación} de historial (PDF/CSV) por usuario.
+        \end{itemize}
+    \subsection*{Organización y área}
+        Trabajaremos con una universidad (facultad con biblioteca y laboratorios de docencia), donde circulan materiales como dispositivos electrónicos (tablets, notebooks, etc), libros, herramientas, kits de electrónica, instrumentos de laboratorio y accesorios (multímetros, fuentes, cables, etc.).
+        Hoy la gestión se hace de forma mixta: planillas, correo y registros manuales en mesón. Eso genera problemas tales como: ítems que “desaparecen” del control, atrasos que nadie recuerda, materiales dañados que siguen en catálogo, colas en horas punta y poca visibilidad de qué está disponible y cuándo vuelve.
+        El área beneficiada es la Biblioteca y el Laboratorio de la Facultad, en donde los usuarios principales son:
+        \begin{itemize}
+        \item \textbf{Estudiantes y docentes que piden y devuelven materiales.}
+         \item \textbf{Encargado/a de biblioteca/lab que valida retiros y devoluciones, gestiona estado de ítems, multas y reportes.}
+        \end{itemize}
+
+\section{Objetivos del sistema y descripción de usuarios}
+    \subsection*{Objetivos del sistema}
+        \begin{enumerate}
+            \item \textbf{Disponibilidad y trazabilidad}: Garantizar la disponibilidad y trazabilidad de los materiales para facilitar su localización y asegurar un control confiable de todas las operaciones.
+            \item \textbf{Eficiencia operativa}: Optimizar la eficiencia operativa en la atención a usuarios, agilizando el proceso de préstamo y devolución.
+            \item \textbf{Reducción de morosidad}: Disminuir los niveles de morosidad en los préstamos, fomentando el uso responsable de los recursos.
+            \item \textbf{Integridad del inventario}: Preservar la integridad del inventario, garantizando la disponibilidad y el buen estado de los materiales.
+            \item \textbf{Toma de decisiones}: Facilitar la toma de decisiones mediante reportes de uso que orienten la planificación de compras y mantenimiento.
+        \end{enumerate}
+
+    \subsection*{Usuarios del sistema}
+        \begin{itemize}
+            \item \textbf{Estudiante}: Busca, reserva, retira, devuelve, renueva (si procede), consulta su historial y descarga su registro (PDF/CSV).
+            \item \textbf{Docente}: Mismas facultades que estudiante, con prioridad opcional en materiales docentes (si la política lo contempla).
+            \item \textbf{Encargado/a (biblioteca/lab)}: Valida retiros y devoluciones, registra daños/pérdidas/robos, gestiona multas/bloqueos, administra lista de espera, emite reportes y parametriza políticas (ventanas, topes, umbrales).
+        \end{itemize}
+
+\section{Requerimientos funcionales}
+    \subsection*{Listado de RF (Entrega 1)}
+        \renewcommand{\arraystretch}{1.35}
+        \setlength{\tabcolsep}{6pt}
+        \begin{tabular}{|>{\raggedright\arraybackslash}p{1.2cm}|>{\raggedright\arraybackslash}p{3.5cm}|>{\raggedright\arraybackslash}p{9.2cm}|>{\raggedright\arraybackslash}p{2.2cm}|}
+        \hline
+        \textbf{ID} & \textbf{Nombre} & \textbf{Descripción} & \textbf{Usuario} \\ \hline
+        RF01 & Búsqueda y filtros & Buscar ítems por Código identificador, nombre, tipo, ubicación y estado (disponible/prestado), mostrando cuando aplique la fecha estimada de devolución. & Estudiante / Docente \\ \hline
+        RF02 & Reserva con ventana & Reservar un ítem con ventana de retiro; la reserva \textbf{caduca automáticamente} si no se retira a tiempo. & Estudiante / Docente \\ \hline
+        RF03 & Préstamo presencial & Registrar el préstamo presencial con responsable y fecha de devolución pactada. & Encargado \\ \hline
+        RF04 & Renovaciones & Permitir renovaciones automáticas si no hay reservas en cola y no se supera el máximo de renovaciones. & Estudiante / Docente \\ \hline
+        RF05 & Multas por atraso & Calcular multa por atraso según tarifa por día & Todos \\ \hline
+        RF06 & Bloqueo por deuda & Bloquear nuevos préstamos si existen multas impagas. & Encargado \\ \hline
+        RF07 & Daños y pérdidas & Marcar ítem como dañado, perdido o robado y generar el cargo correspondiente, actualizando su estado. & Encargado \\ \hline
+        RF08 & Lista de espera & Gestionar lista de espera por ítem; cuando se devuelve un articulo, se registra la operación, actualizando las existencias del articulo & Encargado \\ \hline
+        RF09 & Sugerencias de articulos & Sugerir nuevos articulos o materiales o solicitar que aumenten las existencias de un articulo en particular. & Estudiante / Docente \\ \hline
+        RF10 & Notificaciones & Enviar recordatorios y avisos a través de \textbf{correo}, \textbf{WhatsApp} y \textbf{portal (in-app)}, según las preferencias del usuario. Cubre devoluciones próximas, atrasos, disponibilidad y caducidad de reservas. & Encargado \\ \hline
+        RF11 & Reportes de circulación & Entregar reportes de rotación por ítem, morosidad y daños/pérdidas/robo por periodo y sede. & Encargado \\ \hline
+        RF12 & Exportar historial & Exportar un informe donde se detalle el historial de préstamos y reservas de un usuario (PDF/CSV). & Todos \\ \hline
+        \end{tabular}
+
+        \vspace{0.6cm}
+        \newpage
+        \subsection*{\textbf{Notas operativas:}}
+        \begin{itemize}
+            \item \textbf{RF01}: La fecha estimada de devolución, debe ser respecto al momento de hacer la consulta.
+            
+            \item \textbf{RF02:} Las reservas caducadas liberan el articulo; si hay registro en lista de espera (\textbf{RF08}) de este articulo, se notifica al usuario respectivo. Por otro lado si la reserva caduca (\textbf{RF02}), se le notifica al usuario que que su reserva caducó (\textbf{RF10}), además, el usuario no puede hacer reserva con ventana si tiene una multa por pagar.
+            
+            \item \textbf{RF04}: El usuario puede renovar el préstamo de un artículo, solamente si no existe un registro de este artículo en la lista de espera hecho por otro usuario.
+            
+            \item \textbf{Multas y bloqueos (RF05–RF06)} están orientados a reducir la morosidad y proteger la disponibilidad del inventario, el cambio de estado de un articulo debe afectar a las listas de espera si lo amerita.
+            
+            \item \textbf{RF07}: Existe un tope de dias de atraso, luego, se considera en estado "Robado".
+
+            \item \textbf{RF10 – Notificaciones}: Por \textbf{portal}, \textbf{correo} o \textbf{WhatsApp} (según preferencias del usuario). Se envían ante eventos clave: reservas (creada, próxima a caducar, caducada), préstamos (confirmado), \emph{devolución próxima}, atraso/multa y disponibilidad para lista de espera.
+            
+            \item \textbf{RF12}: El informe de historial de prestamos y reservas de un usuario en particular, sólo lo puede solicitar el mismo usuario que consulta, o un encargado.
+            
+        \end{itemize}
+
+
+
+\section{Mecanismo de persistencia de datos}
+
+    \subsection*{Modelo de datos}
+        El sistema utiliza una base de datos relacional \textbf{MySQL} versión 8.0 para la persistencia de los datos. La estructura de la base de datos se define a través de un modelo entidad-relación que captura las principales entidades del dominio del sistema de préstamos.
+        \begin{figure}[H]
+            \centering
+            % Asegúrate que la ruta a la imagen sea correcta desde tu main.tex
+            \includegraphics[width=1.05\linewidth]{img/prestalabdiagramabueno.png}
+            \caption{Diagrama entidad-relación de prestalab}
+        \end{figure}
+        Las entidades principales incluyen \texttt{usuario}, \texttt{item}, \texttt{item\_existencia}, \texttt{sede}, \texttt{solicitud}, \texttt{prestamo}, \texttt{multa}, \texttt{lista\_espera}, \texttt{sugerencia}, \texttt{notificacion}, \texttt{ventana}, \texttt{atraso}, \texttt{item\_solicitud} y \texttt{configuracion\_sistema}. Estas tablas gestionan la información de usuarios, el catálogo de materiales, el inventario físico por sede, las solicitudes de préstamo o reserva, los préstamos activos, las penalizaciones (multas y atrasos), las listas de espera, las sugerencias de usuarios, las notificaciones enviadas y los parámetros de configuración del sistema.
+
+    \subsection*{Diccionario de datos}
+        A continuación se detalla la estructura completa de las tablas definidas en la base de datos MySQL.
+
+        \paragraph{item}
+        \begingroup\footnotesize
+        \begin{tabularx}{\linewidth}{@{}l l c l l Y@{}}
+        \toprule
+        \textbf{Campo} & \textbf{Tipo} & \textbf{Nulo} & \textbf{PK/FK} & \textbf{Índice} & \textbf{Descripción / Dominio}\\
+        \midrule
+        id & BIGINT & No & PK & Sí (PK), auto\_increment, unique & Identificador único del tipo de ítem.\\
+        nombre & VARCHAR(50) & No & \NA & Sí (itemIDX1) & Nombre del material (ej: 'Raspberry Pi 4').\\
+        cantidad & INTEGER & No & \NA &  & Cantidad total referencial en catálogo.\\
+        tipo & VARCHAR(20) & No & \NA & Sí (itemIDX1) & Categoría del ítem (ej: 'EQUIPO\_ELECTRONICO', 'LIBRO').\\
+        valor & DECIMAL(10,2) & No & \NA &  & Valor referencial para cálculo de multas por daño/pérdida (CHECK valor \(\ge\) 0).\\
+        tarifa\_atraso & DECIMAL(10,2) & No & \NA &  & Tarifa diaria por atraso en devolución (CHECK tarifa\_atraso \(\ge\) 0).\\
+        descripcion & VARCHAR(100) & No & \NA &  & Descripción breve del ítem.\\
+        cantidad\_max & INTEGER & No & \NA &  & Cantidad máxima de este tipo de ítem por solicitud/préstamo (CHECK cantidad\_max \(>\) 0).\\
+        registro\_instante & DATETIME & No & \NA &  & Fecha y hora de creación del registro del tipo de ítem.\\
+        \bottomrule
+        \end{tabularx}
+        \endgroup
+
+        \paragraph{sede}
+        \begingroup\footnotesize
+        \begin{tabularx}{\linewidth}{@{}l l c l l Y@{}}
+        \toprule
+        \textbf{Campo} & \textbf{Tipo} & \textbf{Nulo} & \textbf{PK/FK} & \textbf{Índice} & \textbf{Descripción / Dominio}\\
+        \midrule
+        id & BIGINT & No & PK & Sí (PK), auto\_increment, unique & Identificador único de la sede o ubicación física.\\
+        nombre & VARCHAR(50) & No & \NA &  & Nombre de la sede (ej: 'FIC\_LABORATORIO\_01').\\
+        \bottomrule
+        \end{tabularx}
+        \endgroup
+
+        \paragraph{item\_existencia}
+        \begingroup\footnotesize
+        \begin{tabularx}{\linewidth}{@{}l l c l l Y@{}}
+        \toprule
+        \textbf{Campo} & \textbf{Tipo} & \textbf{Nulo} & \textbf{PK/FK} & \textbf{Índice} & \textbf{Descripción / Dominio}\\
+        \midrule
+        id & BIGINT & No & PK & Sí (PK), auto\_increment, unique & Identificador único de una copia física específica de un ítem.\\
+        item\_id & BIGINT & No & FK \(\rightarrow\) \texttt{item.id} & Sí (item\_existenciaIDX1) & Referencia al tipo de ítem al que pertenece esta copia.\\
+        sede\_id & BIGINT & No & FK \(\rightarrow\) \texttt{sede.id} & Sí & Referencia a la sede donde se encuentra físicamente esta copia.\\
+        codigo & VARCHAR(50) & No & \NA & Único & Código único de inventario para esta copia física (ej: '001001001').\\
+        estado & VARCHAR(20) & No & \NA &  & Estado actual de la copia: 'DISPONIBLE', 'PRESTADO', 'MANTENIMIENTO', 'PERDIDO', 'DANNADO', 'ROBADO'.\\
+        registro\_instante & DATETIME & No & \NA &  & Fecha y hora de creación del registro de esta copia.\\
+        \bottomrule
+        \end{tabularx}
+        \endgroup
+
+        \paragraph{usuario}
+        \begingroup\footnotesize
+        \begin{tabularx}{\linewidth}{@{}l l c l l Y@{}}
+        \toprule
+        \textbf{Campo} & \textbf{Tipo} & \textbf{Nulo} & \textbf{PK/FK} & \textbf{Índice} & \textbf{Descripción / Dominio}\\
+        \midrule
+        id & BIGINT & No & PK & Sí (PK), auto\_increment, unique & Identificador único del usuario.\\
+        nombre & VARCHAR(50) & No & \NA & Sí (usuarioIDX1) & Nombre completo del usuario.\\
+        correo & VARCHAR(50) & No & \NA & Único & Dirección de correo electrónico (única).\\
+        tipo & VARCHAR(20) & No & \NA &  & Rol del usuario: 'ENCARGADO', 'ESTUDIANTE', 'DOCENTE'.\\
+        telefono & VARCHAR(15) & Sí & \NA &  & Número de teléfono de contacto (opcional, default '').\\
+        password & VARCHAR(128) & No & \NA &  & Hash de la contraseña del usuario (generado con bcrypt).\\
+        estado & VARCHAR(20) & No & \NA & default 'ACTIVO' & Estado de la cuenta: 'ACTIVO', 'INACTIVO', 'SUSPENDIDO', 'DEUDOR', 'BLOQUEADO'.\\
+        preferencias\_notificacion & INTEGER & No & \NA & default 1 & Preferencias de canal para notificaciones (ej: 1=PORTAL, 2=WHATSAPP, 4=EMAIL, suma para múltiples).\\
+        registro\_instante & DATETIME & No & \NA & default CURRENT\_TIMESTAMP & Fecha y hora de creación de la cuenta.\\
+        \bottomrule
+        \end{tabularx}
+        \endgroup
+
+        \paragraph{sugerencia}
+        \begingroup\footnotesize
+        \begin{tabularx}{\linewidth}{@{}l l c l l Y@{}}
+        \toprule
+        \textbf{Campo} & \textbf{Tipo} & \textbf{Nulo} & \textbf{PK/FK} & \textbf{Índice} & \textbf{Descripción / Dominio}\\
+        \midrule
+        id & BIGINT & No & PK & Sí (PK), auto\_increment, unique & Identificador único de la sugerencia.\\
+        usuario\_id & BIGINT & No & FK \(\rightarrow\) \texttt{usuario.id} & Sí & Usuario que realizó la sugerencia.\\
+        sugerencia & VARCHAR(100) & No & \NA &  & Texto de la sugerencia enviada por el usuario.\\
+        estado & VARCHAR(20) & No & \NA & default 'PENDIENTE' & Estado de la sugerencia: 'PENDIENTE', 'ACEPTADA', 'RECHAZADA'.\\
+        registro\_instante & DATETIME & No & \NA & default CURRENT\_TIMESTAMP & Fecha y hora en que se registró la sugerencia.\\
+        \bottomrule
+        \end{tabularx}
+        \endgroup
+
+        \paragraph{notificacion}
+        \begingroup\footnotesize
+        \begin{tabularx}{\linewidth}{@{}l l c l l Y@{}}
+        \toprule
+        \textbf{Campo} & \textbf{Tipo} & \textbf{Nulo} & \textbf{PK/FK} & \textbf{Índice} & \textbf{Descripción / Dominio}\\
+        \midrule
+        id & BIGINT & No & PK & Sí (PK), auto\_increment, unique & Identificador único de la notificación enviada.\\
+        usuario\_id & BIGINT & No & FK \(\rightarrow\) \texttt{usuario.id} & Sí (notificacionIDX1) & Usuario destinatario de la notificación.\\
+        canal & INTEGER & No & \NA &  & Canal por el cual se envió (o se intentó enviar) la notificación (valor numérico asociado a PORTAL, WHATSAPP, EMAIL).\\
+        tipo & VARCHAR(20) & No & \NA &  & Tipo de evento que generó la notificación (ej: 'RECORDATORIO', 'LISTA\_ESPERA', 'ATRASO', etc.).\\
+        mensaje & TEXT & No & \NA &  & Contenido del mensaje enviado.\\
+        registro\_instante & DATETIME & No & \NA & default CURRENT\_TIMESTAMP & Fecha y hora en que se generó la notificación.\\
+        \bottomrule
+        \end{tabularx}
+        \endgroup
+
+        \paragraph{solicitud}
+        \begingroup\footnotesize
+        \begin{tabularx}{\linewidth}{@{}l l c l l Y@{}}
+        \toprule
+        \textbf{Campo} & \textbf{Tipo} & \textbf{Nulo} & \textbf{PK/FK} & \textbf{Índice} & \textbf{Descripción / Dominio}\\
+        \midrule
+        id & BIGINT & No & PK & Sí (PK), auto\_increment, unique & Identificador único de la solicitud.\\
+        usuario\_id & BIGINT & No & FK \(\rightarrow\) \texttt{usuario.id} & Sí (solicitudIDX1) & Usuario que realizó la solicitud.\\
+        tipo & VARCHAR(30) & No & \NA &  & Tipo de solicitud: 'VENTANA' (reserva), 'PRESTAMO', 'RENOVACION'.\\
+        estado & VARCHAR(20) & No & \NA & default 'PENDIENTE' & Estado de la solicitud: 'PENDIENTE', 'APROBADA', 'RECHAZADA'.\\
+        registro\_instante & DATETIME & No & \NA & default CURRENT\_TIMESTAMP & Fecha y hora en que se creó la solicitud.\\
+        \bottomrule
+        \end{tabularx}
+        \endgroup
+
+        \paragraph{item\_solicitud}
+        \begingroup\footnotesize
+        \begin{tabularx}{\linewidth}{@{}l l c l l Y@{}}
+        \toprule
+        \textbf{Campo} & \textbf{Tipo} & \textbf{Nulo} & \textbf{PK/FK} & \textbf{Índice} & \textbf{Descripción / Dominio}\\
+        \midrule
+        solicitud\_id & BIGINT & No & PK (comp.), FK \(\rightarrow\) \texttt{solicitud.id} & Sí & Referencia a la cabecera de la solicitud.\\
+        item\_id & BIGINT & No & PK (comp.), FK \(\rightarrow\) \texttt{item.id} & Sí (item\_solicitudIDX1) & Referencia al tipo de ítem solicitado.\\
+        cantidad & INTEGER & No & \NA &  & Cantidad solicitada de ese tipo de ítem (CHECK cantidad \(>\) 0).\\
+        registro\_instante & DATETIME & No & \NA & default CURRENT\_TIMESTAMP & Fecha y hora de creación de esta línea de detalle.\\
+        \bottomrule
+        \end{tabularx}
+        \endgroup
+
+        \paragraph{prestamo}
+        \begingroup\footnotesize
+        \begin{tabularx}{\linewidth}{@{}l l c l l Y@{}}
+        \toprule
+        \textbf{Campo} & \textbf{Tipo} & \textbf{Nulo} & \textbf{PK/FK} & \textbf{Índice} & \textbf{Descripción / Dominio}\\
+        \midrule
+        id & BIGINT & No & PK & Sí (PK), auto\_increment, unique & Identificador único del préstamo.\\
+        item\_existencia\_id & BIGINT & No & FK \(\rightarrow\) \texttt{item\_existencia.id} & Sí (prestamoIDX1) & Referencia a la copia física específica que se prestó.\\
+        solicitud\_id & BIGINT & No & FK \(\rightarrow\) \texttt{solicitud.id} & Sí & Referencia a la solicitud que originó el préstamo.\\
+        fecha\_prestamo & DATETIME & No & \NA &  & Fecha y hora exactas en que se realizó el préstamo.\\
+        fecha\_devolucion & DATETIME & Sí & \NA &  & Fecha límite pactada para la devolución, o fecha real si ya fue devuelto.\\
+        comentario & TEXT & Sí & \NA &  & Observaciones adicionales sobre el préstamo o devolución.\\
+        estado & VARCHAR(20) & No & \NA &  & Estado actual del préstamo: 'ACTIVO', 'DEVUELTO', 'VENCIDO', 'PERDIDO'.\\
+        renovaciones\_realizadas & INTEGER & No & \NA & default 0 & Contador de cuántas veces se ha renovado el préstamo.\\
+        registro\_instante & DATETIME & No & \NA & default CURRENT\_TIMESTAMP & Fecha y hora de creación del registro de préstamo.\\
+        \bottomrule
+        \end{tabularx}
+        \endgroup
+
+        \paragraph{atraso}
+        \begingroup\footnotesize
+        \begin{tabularx}{\linewidth}{@{}l l c l l Y@{}}
+        \toprule
+        \textbf{Campo} & \textbf{Tipo} & \textbf{Nulo} & \textbf{PK/FK} & \textbf{Índice} & \textbf{Descripción / Dominio}\\
+        \midrule
+        id & BIGINT & No & PK & Sí (PK), auto\_increment, unique & Identificador único del registro de atraso.\\
+        prestamo\_id & BIGINT & No & FK \(\rightarrow\) \texttt{prestamo.id} & Sí (atrasoIDX1) & Referencia al préstamo que generó el atraso.\\
+        dias\_atraso & INTEGER & No & \NA &  & Número de días de atraso calculados (CHECK dias\_atraso \(>\) 0).\\
+        estado & VARCHAR(20) & No & \NA &  & Estado del atraso: 'PENDIENTE', 'NOTIFICADO', 'PAGADO', 'NO\_PAGADO'.\\
+        registro\_instante & DATETIME & No & \NA & default CURRENT\_TIMESTAMP & Fecha y hora en que se detectó y registró el atraso.\\
+        \bottomrule
+        \end{tabularx}
+        \endgroup
+
+        \paragraph{multa}
+        \begingroup\footnotesize
+        \begin{tabularx}{\linewidth}{@{}l l c l l Y@{}}
+        \toprule
+        \textbf{Campo} & \textbf{Tipo} & \textbf{Nulo} & \textbf{PK/FK} & \textbf{Índice} & \textbf{Descripción / Dominio}\\
+        \midrule
+        id & BIGINT & No & PK & Sí (PK), auto\_increment, unique & Identificador único de la multa.\\
+        prestamo\_id & BIGINT & No & FK \(\rightarrow\) \texttt{prestamo.id} & Sí (multaIDX1) & Referencia al préstamo asociado a la multa.\\
+        motivo & VARCHAR(20) & No & \NA &  & Causa de la multa: 'ATRASO', 'DANNOS', 'ROBO', 'PERDIDA'.\\
+        valor & DECIMAL(10,2) & No & \NA &  & Monto de la multa (CHECK valor \(>\) 0).\\
+        estado & VARCHAR(20) & No & \NA &  & Estado de la multa: 'PENDIENTE', 'NOTIFICADO', 'PAGADO', 'NO\_PAGADO'.\\
+        registro\_instante & DATETIME & No & \NA & default CURRENT\_TIMESTAMP & Fecha y hora en que se generó la multa.\\
+        \bottomrule
+        \end{tabularx}
+        \endgroup
+
+        \paragraph{ventana}
+        \begingroup\footnotesize
+        \begin{tabularx}{\linewidth}{@{}l l c l l Y@{}}
+        \toprule
+        \textbf{Campo} & \textbf{Tipo} & \textbf{Nulo} & \textbf{PK/FK} & \textbf{Índice} & \textbf{Descripción / Dominio}\\
+        \midrule
+        id & BIGINT & No & PK & Sí (PK), auto\_increment, unique & Identificador único de la ventana de reserva.\\
+        solicitud\_id & BIGINT & No & FK \(\rightarrow\) \texttt{solicitud.id} & Sí & Referencia a la solicitud de tipo 'VENTANA' que la originó.\\
+        item\_existencia\_id & BIGINT & No & FK \(\rightarrow\) \texttt{item\_existencia.id} & Sí & Referencia a la copia física específica reservada.\\
+        inicio & DATETIME & No & \NA &  & Fecha y hora de inicio del período de reserva para retiro.\\
+        fin & DATETIME & No & \NA &  & Fecha y hora de fin del período de reserva (CHECK fin \(>\) inicio).\\
+        \bottomrule
+        \end{tabularx}
+        \endgroup
+
+        \paragraph{lista\_espera}
+        \begingroup\footnotesize
+        \begin{tabularx}{\linewidth}{@{}l l c l l Y@{}}
+        \toprule
+        \textbf{Campo} & \textbf{Tipo} & \textbf{Nulo} & \textbf{PK/FK} & \textbf{Índice} & \textbf{Descripción / Dominio}\\
+        \midrule
+        id & BIGINT & No & PK & Sí (PK), auto\_increment, unique & Identificador único del registro en la lista de espera.\\
+        solicitud\_id & BIGINT & No & FK \(\rightarrow\) \texttt{solicitud.id} & Sí & Referencia a la solicitud del usuario que espera.\\
+        item\_id & BIGINT & No & FK \(\rightarrow\) \texttt{item.id} & Sí & Referencia al tipo de ítem que se espera.\\
+        fecha\_ingreso & DATETIME & No & \NA & Sí (lista\_esperaIDX3) & Fecha y hora en que el usuario ingresó a la lista.\\
+        estado & VARCHAR(20) & No & \NA & default 'EN\_ESPERA' & Estado en la lista: 'EN\_ESPERA', 'CANCELADA', 'ATENDIDA'.\\
+        registro\_instante & DATETIME & No & \NA & default CURRENT\_TIMESTAMP & Fecha y hora de creación de este registro.\\
+        \bottomrule
+        \end{tabularx}
+        \endgroup
+
+        \paragraph{configuracion\_sistema}
+        \begingroup\footnotesize
+        \begin{tabularx}{\linewidth}{@{}l l c l l Y@{}}
+        \toprule
+        \textbf{Campo} & \textbf{Tipo} & \textbf{Nulo} & \textbf{PK/FK} & \textbf{Índice} & \textbf{Descripción / Dominio}\\
+        \midrule
+        id & BIGINT & No & PK & Sí (PK), auto\_increment, unique & Identificador único del parámetro de configuración.\\
+        clave & VARCHAR(50) & No & \NA & Único & Nombre clave del parámetro (ej: 'max\_renovaciones\_usuario').\\
+        valor & VARCHAR(100) & No & \NA &  & Valor del parámetro (como string, ej: '3', '24', '1000.00').\\
+        descripcion & TEXT & Sí & \NA &  & Descripción opcional del propósito del parámetro.\\
+        registro\_instante & DATETIME & No & \NA & default CURRENT\_TIMESTAMP & Fecha y hora de creación o última modificación del parámetro.\\
+        \bottomrule
+        \end{tabularx}
+        \endgroup
+
+        \paragraph*{Lógica y uso de configuracion\_sistema} \mbox{}
+        \begingroup\footnotesize
+        \begin{itemize}
+          \item \textbf{Propósito}: Almacén centralizado clave–valor para parámetros operativos y de negocio, permitiendo ajustes sin modificar el código o esquema de BD. La clave es única y el valor se interpreta según la lógica del servicio que lo consume.
+          \item \textbf{Lectura}: Los servicios consultan estos parámetros en tiempo de ejecución para aplicar reglas de negocio (ej: calcular multas, verificar límites de renovación, determinar caducidad de reservas).
+          \item \textbf{Ejemplos de Claves}: \texttt{max\_renovaciones\_usuario}, \texttt{horas\_expiracion\_reserva}, \texttt{valor\_multa\_por\_dia\_atraso}, \texttt{dias\_notificacion\_devolucion\_proxima}, \texttt{tiempo\_bloqueo\_usuario\_deudor\_dias}.
+        \end{itemize}
+        \endgroup
+
+\newpage % Salto de página antes de la siguiente sección
+
+\section{Estructuración de funcionalidades}
+    Dado que el sistema \textbf{PrestaLab} adopta una arquitectura \textbf{SOA (Service Oriented Architecture)} basada en un \textbf{Bus de Servicios TCP}, como se describe en el documento \texttt{ArquiSW\_soa.pdf}, las funcionalidades se organizan en componentes cliente y componentes servicio, comunicándose a través del bus central que opera en el puerto 5000.
+
+    \subsection{Funcionalidades de los componentes de cliente}
+        El componente cliente principal es una \textbf{interfaz web (SPA)} diseñada para interactuar con el sistema. \textbf{Importante}: Este cliente fue desarrollado originalmente para comunicarse con un bus ESB basado en HTTP y no fue completamente adaptado para interactuar con el bus TCP final. Las funcionalidades previstas para los clientes son:
+        \begin{itemize}
+          \item \textbf{Portal web (estudiantes y docentes):}
+          \begin{itemize}
+            \item Búsqueda y filtrado de ítems en el catálogo (RF01).
+            \item Realizar solicitudes de reserva con ventana de tiempo o de préstamo directo (RF02).
+            \item Consultar el estado de sus solicitudes y préstamos (RF04).
+            \item Solicitar renovación de préstamos (RF04).
+            \item Consultar y exportar su historial de préstamos (RF12).
+            \item Enviar y consultar sugerencias de artículos (RF09).
+            \item Gestionar perfil (datos de contacto) y preferencias de notificación (RF10).
+            \item Ver notificaciones recibidas (RF10).
+            \item Consultar multas pendientes (RF05).
+            \item Interactuar con la lista de espera (RF08).
+          \end{itemize}
+          \item \textbf{Módulo de administración (encargado/a):} Accesible a través del mismo portal web para usuarios con rol 'ENCARGADO'.
+          \begin{itemize}
+            \item Gestionar usuarios (buscar, cambiar estado).
+            \item Aprobar/Rechazar solicitudes de registro o préstamo pendientes (RF02, RF03).
+            \item Registrar préstamos y devoluciones (RF03) (Funcionalidad prevista pero no implementada en el panel admin.js).
+            \item Marcar ítems como dañados, perdidos, etc. (RF07) (Funcionalidad prevista pero no implementada en el panel admin.js).
+            \item Administrar listas de espera (RF08) (Funcionalidad prevista pero no implementada en el panel admin.js).
+            \item Gestionar multas y bloqueos de usuarios (RF05, RF06).
+            \item Aprobar/Rechazar sugerencias (RF09).
+            \item Generar reportes de circulación y exportar historiales de cualquier usuario (RF11, RF12).
+          \end{itemize}
+        \end{itemize}
+        Como se mencionó, la adaptación completa de la comunicación del frontend al bus TCP quedó pendiente.
+
+    \subsection{Funcionalidades de los componentes de servicio (SOA)}
+        Los servicios son procesos Python independientes, cada uno ejecutado en su propio contenedor Docker. Se registran en el Bus SOA TCP al iniciar y procesan las operaciones correspondientes a su dominio, interactuando con la base de datos MySQL compartida.
+        \begin{itemize}
+          \item \textbf{regist (Registro y Usuarios)}: Maneja la creación de cuentas (\texttt{register}), autenticación (\texttt{login}), consulta (\texttt{get\_user}) y actualización de datos de usuarios (\texttt{update\_user}). También gestiona la aprobación/rechazo de solicitudes de registro (\texttt{update\_solicitud}). Actúa como soporte transversal para identificar usuarios en otros servicios.
+          \item \textbf{prart (Préstamos \& Artículos)}: Responsable del catálogo de ítems (\texttt{get\_all\_items}, \texttt{search\_items}), la creación y gestión de solicitudes (\texttt{create\_solicitud}, \texttt{get\_solicitudes}), la creación y cancelación de reservas con ventana (\texttt{create\_reserva}, \texttt{cancel\_reserva}), el registro de préstamos (\texttt{create\_prestamo}) y devoluciones (\texttt{create\_devolucion}), las renovaciones (\texttt{renovar\_prestamo}) y la actualización del estado físico de un ítem (\texttt{update\_item\_estado}). (RF01, RF02, RF03, RF04, RF07).
+          \item \textbf{lista (Listas de espera)}: Gestiona la cola de espera para ítems no disponibles. Permite agregar usuarios (\texttt{create\_lista\_espera}), consultar la cola por ítem (\texttt{get\_lista\_espera}) y actualizar el estado de un registro en la cola (\texttt{update\_lista\_espera}) (RF08).
+          \item \textbf{multa (Penalizaciones)}: Calcula, registra (\texttt{crear\_multa}) y consulta (\texttt{get\_multas\_usuario}) las multas por atraso, daño, etc. También aplica o remueve bloqueos a usuarios (\texttt{update\_bloqueo}) (RF05, RF06).
+          \item \textbf{notis (Notificaciones)}: Se encarga de registrar notificaciones para enviar (\texttt{crear\_notificacion}) y de gestionar las preferencias de notificación de los usuarios (\texttt{get\_preferencias}, \texttt{update\_preferencias}). La lógica de envío real (email, WhatsApp) no está implementada. (RF10).
+          \item \textbf{gerep (Reportes)}: Genera reportes. Proporciona el historial de préstamos de un usuario en diferentes formatos (\texttt{get\_historial}) y calcula métricas de circulación (rotación, morosidad, daños) por sede y período (\texttt{get\_reporte\_circulacion}) (RF11, RF12).
+          \item \textbf{sugit (Sugerencias)}: Permite a los usuarios registrar sugerencias (\texttt{registrar\_sugerencia}), listarlas (\texttt{listar\_sugerencias}) y a los administradores aprobarlas (\texttt{aprobar\_sugerencia}) o rechazarlas (\texttt{rechazar\_sugerencia}) (RF09).
+        \end{itemize}
+        La adaptación completa de la lógica de comunicación interna de estos servicios al protocolo del bus TCP no se probó completamente a la fecha de este informe.
+
+\newpage % Salto de página antes de la siguiente sección
+
+\section{Interfaces de los componentes}
+    La comunicación en esta arquitectura SOA se centraliza exclusivamente a través del \textbf{Bus SOA TCP}, que actúa como intermediario único. Los clientes y servicios interactúan con el bus utilizando un protocolo binario específico basado en sockets TCP, como se detalla en el documento \texttt{ArquiSW\_soa.pdf}.
+
+    \subsection*{Componente Bus SOA}
+        \begin{itemize}
+            \item \textbf{Ubicación y Acceso}: El bus opera como un contenedor Docker (\texttt{jrgiadach/soabus:v1}) accesible en la red interna de Docker en el host \texttt{bus} y expuesto externamente (para clientes fuera de Docker) en \texttt{localhost}, puerto \textbf{5000}.
+            \item \textbf{Protocolo de Comunicación (TCP Socket)}:
+                \begin{itemize}
+                    \item \textbf{Mensaje de Entrada (Cliente/Servicio $\rightarrow$ Bus)}: Sigue la estructura \texttt{NNNNNSSSSSDATOS}.
+                        \begin{itemize}
+                            \item \texttt{NNNNN}: Longitud exacta de 5 dígitos (con ceros a la izquierda) que indica el número total de bytes de \texttt{SSSSS} + \texttt{DATOS}. Ejemplo: \texttt{00029}.
+                            \item \texttt{SSSSS}: Nombre del servicio destino, exactamente 5 caracteres (con espacios a la derecha si es necesario). Ejemplo: \texttt{regis}, \texttt{prart}.
+                            \item \texttt{DATOS}: La carga útil del mensaje. Para las solicitudes a servicios, usualmente contiene el nombre de la operación seguido de un espacio y un objeto JSON con los parámetros. Ejemplo: \texttt{login \{"correo":"u@mail.com","password":"123"\}}.
+                        \end{itemize}
+                    \item \textbf{Mensaje de Salida (Bus $\rightarrow$ Cliente/Servicio)}: Sigue la estructura \texttt{NNNNNSSSSSSTDATOS}.
+                        \begin{itemize}
+                            \item \texttt{NNNNN}: Longitud total de 5 dígitos.
+                            \item \texttt{SSSSS}: Nombre del servicio que originó la respuesta (5 caracteres).
+                            \item \texttt{ST}: Indicador de estado de 2 caracteres: \texttt{OK} para éxito, \texttt{NK} para error.
+                            \item \texttt{DATOS}: La respuesta del servicio, usualmente un objeto JSON. Ejemplo: \texttt{\{"message":"Autenticado", "token":"..."\}} o \texttt{\{"error":"Credenciales inválidas"\}}.
+                        \end{itemize}
+                    \item \textbf{Registro de Servicios (\texttt{sinit})}: Al iniciar, cada servicio debe enviar un mensaje especial al bus para registrarse.
+                        \begin{itemize}
+                            \item Formato: \texttt{NNNNNsinitSSSSS}, donde \texttt{NNNNN} es la longitud de \texttt{sinitSSSSS} (siempre \texttt{00010}), \texttt{sinit} es el comando fijo, y \texttt{SSSSS} es el nombre del servicio a registrar (5 caracteres). Ejemplo: \texttt{00010sinitprart}.
+                            \item Respuesta del Bus: El bus confirma el registro enviando de vuelta un mensaje simple como \texttt{00002OK}.
+                        \end{itemize}
+                \end{itemize}
+        \end{itemize}
+
+    \subsection*{Componentes de cliente}
+        La interfaz web (SPA), para funcionar con esta arquitectura, necesitaría un mecanismo para comunicarse con el Bus SOA a través de sockets TCP usando el protocolo descrito.
+        \begin{itemize}
+            \item \textbf{Interfaz de Comunicación}: Se requeriría adaptar el módulo \texttt{api.js} o crear uno nuevo que maneje la conexión persistente (o por demanda) al socket del bus en \texttt{localhost:5000}. Podría usar WebSockets (requiriendo un gateway intermedio) o invocar un pequeño backend local que actúe como proxy TCP.
+            \item \textbf{Construcción de Mensajes}: Para cada acción del usuario (ej: login, buscar item), el cliente tendría que:
+                \begin{enumerate}
+                    \item Determinar el servicio destino (ej: \texttt{regis}, \texttt{prart}).
+                    \item Determinar la operación interna del servicio (ej: \texttt{login}, \texttt{search\_items}).
+                    \item Formatear los parámetros como un objeto JSON.
+                    \item Construir la cadena \texttt{DATOS} como \texttt{OPERACION \{json\_payload\}}.
+                    \item Ensamblar el mensaje completo \texttt{NNNNNSSSSSDATOS}, calculando la longitud y aplicando padding.
+                    \item Enviar los bytes del mensaje a través del socket TCP al bus.
+                \end{enumerate}
+            \item \textbf{Recepción de Respuestas}: El cliente tendría que escuchar en el socket, leer los primeros 5 bytes para determinar la longitud, leer el resto del mensaje, y luego parsear \texttt{SSSSS}, \texttt{ST}, y \texttt{DATOS} (JSON) para mostrar el resultado al usuario o manejar errores.
+            \item \textbf{Ejemplo de Flujo (Login)}:
+                \begin{itemize}
+                    \item Usuario ingresa correo 'a@b.c' y pass '123'.
+                    \item Frontend prepara: payload JSON \texttt{\{"correo":"a@b.c", "password":"123"\}}.
+                    \item Frontend construye \texttt{DATOS}: \texttt{login \{"correo":"a@b.c", "password":"123"\}}.
+                    \item Frontend calcula longitud de \texttt{regis} + \texttt{DATOS}, digamos 45.
+                    \item Frontend ensambla: \texttt{00045regislogin \{"correo":"a@b.c", "password":"123"\}}.
+                    \item Frontend envía los bytes al bus TCP.
+                    \item Frontend espera respuesta, lee longitud (ej: 60), lee el resto.
+                    \item Frontend parsea: \texttt{regisOK\{"token":"...", "user":\{...\}\}}. Procesa el login exitoso. O parsea \texttt{regisNK\{"error":"..."\}} y muestra el error.
+                \end{itemize}
+        \end{itemize}
+
+    \subsection*{Componentes de servicio (SOA)}
+        Cada servicio se conecta al Bus SOA TCP al iniciar, se registra con \texttt{sinit}, y luego entra en un bucle para escuchar y procesar mensajes entrantes dirigidos a él.
+        \begin{itemize}
+            \item \textbf{Interfaz de Comunicación}: Utilizan la biblioteca \texttt{socket} de Python para conectarse al bus (\texttt{bus:5000} dentro de Docker).
+            \item \textbf{Recepción y Procesamiento}:
+                \begin{enumerate}
+                    \item Leen los 5 bytes iniciales para obtener la longitud \texttt{NNNNN}.
+                    \item Leen exactamente \texttt{NNNNN} bytes adicionales.
+                    \item Extraen los primeros 5 caracteres (\texttt{SSSSS}), aunque en la implementación actual de los servicios, este nombre no se usa explícitamente ya que el bus solo les envía mensajes destinados a ellos.
+                    \item Toman el resto de la cadena como \texttt{DATOS}.
+                    \item Dividen \texttt{DATOS} en \texttt{OPERACION} y \texttt{\{json\_payload\}} (parseando el JSON).
+                    \item Llaman a la función interna correspondiente a la \texttt{OPERACION} (ej: \texttt{registrar\_usuario}, \texttt{buscar\_items}), pasándole el payload parseado y una sesión de BD.
+                \end{enumerate}
+            \item \textbf{Envío de Respuestas}:
+                \begin{enumerate}
+                    \item La función de negocio retorna un estado (\texttt{'OK'} o \texttt{'NK'}) y datos de respuesta (como diccionario Python).
+                    \item El servicio serializa los datos de respuesta a JSON.
+                    \item Construye la cadena \texttt{SSSSSSTDATOS} (usando su propio nombre de servicio \texttt{SSSSS}, el estado \texttt{ST}, y el JSON \texttt{DATOS}).
+                    \item Calcula la longitud total \texttt{NNNNN}.
+                    \item Ensambla el mensaje completo \texttt{NNNNNSSSSSSTDATOS}.
+                    \item Envía los bytes del mensaje de vuelta al bus a través del mismo socket.
+                \end{enumerate}
+            \item \textbf{Operaciones Internas por Servicio} (invocadas según la \texttt{OPERACION} en \texttt{DATOS}):
+                \begin{itemize}
+                    \item \textbf{regist} (\texttt{regis}): \texttt{register}, \texttt{login}, \texttt{get\_user}, \texttt{update\_user}, \texttt{update\_solicitud}.
+                    \item \textbf{prart} (\texttt{prart}): \texttt{get\_all\_items}, \texttt{search\_items}, \texttt{get\_solicitudes}, \texttt{create\_solicitud}, \texttt{create\_reserva}, \texttt{cancel\_reserva}, \texttt{create\_prestamo}, \texttt{create\_devolucion}, \texttt{renovar\_prestamo}, \texttt{update\_item\_estado}.
+                    \item \textbf{lista} (\texttt{lista}): \texttt{create\_lista\_espera}, \texttt{update\_lista\_espera}, \texttt{get\_lista\_espera}.
+                    \item \textbf{multa} (\texttt{multa}): \texttt{get\_multas\_usuario}, \texttt{crear\_multa}, \texttt{update\_bloqueo}.
+                    \item \textbf{notis} (\texttt{notis}): \texttt{crear\_notificacion}, \texttt{get\_preferencias}, \texttt{update\_preferencias}.
+                    \item \textbf{gerep} (\texttt{gerep}): \texttt{get\_historial}, \texttt{get\_reporte\_circulacion}.
+                    \item \textbf{sugit} (\texttt{sugit}): \texttt{registrar\_sugerencia}, \texttt{listar\_sugerencias}, \texttt{aprobar\_sugerencia}, \texttt{rechazar\_sugerencia}.
+                \end{itemize}
+             \item \textbf{Estado Actual}: La lógica básica para conectarse, registrarse (\texttt{sinit}) y manejar el ciclo de recepción/respuesta usando el protocolo TCP está presente en los archivos `app.py` de cada servicio, pero la implementación completa y robusta de todas las operaciones con este protocolo quedó parcialmente realizada.
+        \end{itemize}
+
+
+\section{Documentación del sistema (entrega 3)}
+    \subsection{Componentes de servicio}
+
+    El sistema \textbf{PRESTALAB} está diseñado bajo una arquitectura orientada a servicios (\textbf{SOA}), donde múltiples servicios independientes gestionan distintos dominios funcionales. La comunicación entre estos servicios y los clientes se centraliza a través de un \textbf{Bus de Servicios TCP} (\texttt{jrgiadach/soabus:v1}) que opera en el puerto 5000. Los servicios se registran en el bus al iniciar (\texttt{sinit}) y luego escuchan mensajes formateados según el protocolo \texttt{NNNNNSSSSSDATOS}, donde \texttt{SSSSS} es el nombre del servicio (5 caracteres) y \texttt{DATOS} contiene la operación y un payload JSON. Las respuestas siguen el formato \texttt{NNNNNSSSSSSTDATOS}, incluyendo un estado \texttt{OK} o \texttt{NK}.
+
+    \subsubsection{Resumen general de servicios}
+        Los servicios implementados cubren las funcionalidades principales del sistema:
+        \begin{longtable}{@{}lll@{}}
+        \toprule
+        \textbf{Dominio} & \textbf{Servicio (Nombre Bus)} & \textbf{Función principal} \\ \midrule
+        Reportes & \texttt{gerep} & Generación de reportes históricos y de circulación. \\
+        Lista de Espera & \texttt{lista} & Gestión de solicitudes en espera para ítems. \\
+        Multas & \texttt{multa} & Administración de sanciones y estado de usuarios. \\
+        Notificaciones & \texttt{notis} & Registro de notificaciones y gestión de preferencias. \\
+        Préstamos y Artículos & \texttt{prart} & Administración del catálogo, préstamos, reservas y devoluciones. \\
+        Usuarios & \texttt{regis} & Registro y autenticación de usuarios, gestión de solicitudes. \\
+        Sugerencias & \texttt{sugit} & Gestión de sugerencias o feedback de usuarios. \\ \bottomrule
+        \end{longtable}
+
+    \subsubsection{Detalle de servicios}
+
+        \paragraph{1. Servicio de Reportes (\texttt{gerep})} \mbox{}\\
+        \textbf{Responsabilidad:} Generar reportes de historial y métricas de circulación. Comunica con la BD para obtener los datos necesarios.
+        \begin{longtable}{@{}ll@{}}
+            \toprule
+            \textbf{Operación (en DATOS)} & \textbf{Descripción} \\
+            \midrule
+            \texttt{get\_historial} & Devuelve el historial de préstamos de un usuario específico en formato JSON, CSV o PDF. Payload: \texttt{\{"usuario\_id": id, "formato": "json|csv|pdf"\}}. \\
+            \texttt{get\_reporte\_circulacion} & Genera métricas (rotación, morosidad, daños) para una sede y período dados. Payload: \texttt{\{"periodo": "YYYY-MM", "sede\_id": id\}}. \\
+            \bottomrule
+        \end{longtable}
+
+        \begin{figure}[H]
+            \centering
+            \includegraphics[width=1\linewidth]{img/gerep.png}
+            \caption{Ejemplo de flujo para la operación \texttt{get\_historial} del servicio \texttt{gerep}, contenido de archivo codificado en base64.}
+            \label{fig:gerep}
+        \end{figure}
+
+        \begin{figure}[H]
+            \centering
+            \includegraphics[width=0.5\linewidth]{img/decode.png}
+            \caption{Reporte csv decodificado}
+            \label{fig:decodecsv}
+        \end{figure}
+
+        \paragraph{2. Servicio de Lista de Espera (\texttt{lista})} \mbox{}\\
+        \textbf{Responsabilidad:} Administrar la cola de usuarios esperando por ítems no disponibles.
+        \begin{longtable}{@{}ll@{}}
+        \toprule
+        \textbf{Operación (en DATOS)} & \textbf{Descripción} \\ \midrule
+        \texttt{create\_lista\_espera} & Agrega un registro a la lista de espera asociado a una solicitud y un ítem. Payload: \texttt{\{"solicitud\_id": id, "item\_id": id, "estado": "EN ESPERA"\}}. \\
+        \texttt{update\_lista\_espera} & Actualiza el estado de un registro existente en la lista ('ATENDIDA' o 'CANCELADA'). Payload: \texttt{\{"id": id\_registro, "estado": "ATENDIDA|CANCELADA"\}}. \\
+        \texttt{get\_lista\_espera} & Obtiene todos los registros de la lista de espera para un ítem específico, ordenados por fecha de ingreso. Payload: \texttt{\{"item\_id": id\}}. \\ \bottomrule
+        \end{longtable}
+
+        \begin{figure}[H]
+            \centering
+            \includegraphics[width=1\linewidth]{img/lista.png}
+            \caption{Ejemplo de flujo para la operación \texttt{create\_lista\_espera} del servicio \texttt{lista}.}
+            \label{fig:lista}
+        \end{figure}
+
+        \begin{figure}[H]
+            \centering
+            \includegraphics[width=1\linewidth]{img/listadb.png}
+            \caption{Tabla lista\_espera}
+            \label{fig:dblista}
+        \end{figure}
+
+        \paragraph{3. Servicio de Multas (\texttt{multa})} \mbox{}\\
+        \textbf{Responsabilidad:} Registrar, administrar multas y gestionar el estado (bloqueo) de los usuarios.
+        \begin{longtable}{@{}ll@{}}
+        \toprule
+        \textbf{Operación (en DATOS)} & \textbf{Descripción} \\ \midrule
+        \texttt{get\_multas\_usuario} & Obtiene todas las multas asociadas a un usuario específico. Payload: \texttt{\{"usuario\_id": id\}}. \\
+        \texttt{crear\_multa} & Registra una nueva multa asociada a un préstamo. Payload: \texttt{\{"prestamo\_id": id, "motivo": "...", "valor": float, "estado": "PENDIENTE|..."\}}. \\
+        \texttt{update\_bloqueo} & Actualiza el estado general de un usuario (ej. para bloquearlo o activarlo). Payload: \texttt{\{"usuario\_id": id, "estado": "ACTIVO|BLOQUEADO|..."\}}. \\ \bottomrule
+        \end{longtable}
+
+        \begin{figure}[H]
+            \centering
+            \includegraphics[width=1\linewidth]{img/multa.png}
+            \caption{Ejemplo de flujo para la operación \texttt{crear\_multa} del servicio \texttt{multa}.}
+            \label{fig:multa}
+        \end{figure}
+
+        \begin{figure}[H]
+            \centering
+            \includegraphics[width=1\linewidth]{img/multadb.png}
+            \caption{Tabla Multa}
+            \label{fig:multadb}
+        \end{figure}
+        
+        % Espacio para imagen de multa
+        \begin{figure}[H]
+            \centering
+            % \includegraphics[width=0.8\linewidth]{img/multa_op_ejemplo.png}
+            \fbox{Espacio para imagen: Flujo operación crear\_multa} % Placeholder
+            \caption{}
+        \end{figure}
+
+        \paragraph{4. Servicio de Notificaciones (\texttt{notis})} \mbox{}\\
+        \textbf{Responsabilidad:} Registrar notificaciones destinadas a usuarios y gestionar sus preferencias de canal. (El envío real no está implementado).
+        \begin{longtable}{@{}ll@{}}
+        \toprule
+        \textbf{Operación (en DATOS)} & \textbf{Descripción} \\ \midrule
+        \texttt{crear\_notificacion} & Registra una notificación en la base de datos para un usuario. Payload: \texttt{\{"usuario\_id": id, "canal": int, "tipo": "...", "mensaje": "..."\}}. \\
+        \texttt{get\_preferencias} & Obtiene el valor numérico de las preferencias de notificación de un usuario. Payload: \texttt{\{"usuario\_id": id\}}. \\
+        \texttt{update\_preferencias} & Actualiza las preferencias de notificación de un usuario. Payload: \texttt{\{"usuario\_id": id, "preferencias\_notificacion": int\}}. \\ \bottomrule
+        \end{longtable}
+
+        \begin{figure}[H]
+            \centering
+            \includegraphics[width=1\linewidth]{img/notis.png}
+            \caption{Ejemplo de flujo para la operación \texttt{crear\_notificacion} del servicio \texttt{notis}.}
+            \label{fig:notis}
+        \end{figure}
+
+        \begin{figure}[H]
+            \centering
+            \includegraphics[width=1\linewidth]{img/dbnotispng}
+            \caption{Tabla Notificacion}
+            \label{fig:notisdb}
+        \end{figure}
+        
+        % Espacio para imagen de notis
+        \begin{figure}[H]
+            \centering
+            % \includegraphics[width=0.8\linewidth]{img/notis_op_ejemplo.png}
+            \begin{figure}
+                \centering
+                \includegraphics[width=1.0\linewidth]{notis.jpg}
+                \caption{log de SOA\_bus de notis}
+                \label{fig:placeholder}
+            \end{figure}
+            \caption{}
+        \end{figure}
+
+        \paragraph{5. Servicio de Préstamos y Artículos (\texttt{prart})} \mbox{}\\
+        \textbf{Responsabilidad:} Gestionar el catálogo, inventario, solicitudes, reservas, préstamos y devoluciones.
+        \begin{longtable}{@{}ll@{}}
+        \toprule
+        \textbf{Operación (en DATOS)} & \textbf{Descripción} \\ \midrule
+        \texttt{get\_all\_items} & Obtiene todos los tipos de ítems del catálogo. Payload: \texttt{\{\}}. \\
+        \texttt{search\_items} & Busca tipos de ítems aplicando filtros por nombre y/o tipo. Payload: \texttt{\{"nombre": "...", "tipo": "..."\}}. \\
+        \texttt{get\_solicitudes} & Obtiene las solicitudes realizadas por un usuario específico (identificado por ID o correo). Payload: \texttt{\{"usuario\_id": id\}} o \texttt{\{"correo": "..."\}}. \\
+        \texttt{create\_solicitud} & Crea una nueva solicitud (de tipo PRÉSTAMO o VENTANA) para un usuario. Payload: \texttt{\{"usuario\_id": id | "correo": "", "tipo": "PRESTAMO|VENTANA"\}}. \\
+        \texttt{create\_reserva} & Crea una ventana de reserva para una existencia específica, asociada a una solicitud de tipo VENTANA. Payload: \texttt{\{"solicitud\_id": id, "item\_existencia\_id": id, "inicio": "ISO", "fin": "ISO"\}}. \\
+        \texttt{cancel\_reserva} & Elimina un registro de reserva (ventana). Payload: \texttt{\{"reserva\_id": id\}}. \\
+        \texttt{create\_prestamo} & Registra un préstamo, asociando una existencia a una solicitud aprobada. Payload: \texttt{\{"solicitud\_id": id, "item\_existencia\_id": id, "comentario": "..."\}}. \\
+        \texttt{create\_devolucion} & Marca un préstamo como devuelto. Payload: \texttt{\{"prestamo\_id": id, "comentario": "..."\}}. \\
+        \texttt{renovar\_prestamo} & Extiende el plazo de un préstamo activo. Payload: \texttt{\{"prestamo\_id": id\}}. \\
+        \texttt{update\_item\_estado} & Actualiza el estado de una copia física de un ítem ('DISPONIBLE', 'PRESTADO', 'DANNADO', etc.). Payload: \texttt{\{"existencia\_id": id, "estado": "..."\}}. \\ \bottomrule
+        \end{longtable}
+
+        \begin{figure}[H]
+            \centering
+            \includegraphics[width=1\linewidth]{img/prart.png}
+            \caption{Ejemplo de flujo para la operación \texttt{search\_items} del servicio \texttt{prart}.}
+            \label{fig:prart}
+        \end{figure}
+
+        \begin{figure}[H]
+            \centering
+            \includegraphics[width=1\linewidth]{img/dbprart.png}
+            \caption{Tabla Item}
+            \label{fig:placeholder}
+        \end{figure}
+
+        \paragraph{6. Servicio de Registro y Usuarios (\texttt{regis})} \mbox{}\\
+        \textbf{Responsabilidad:} Gestionar cuentas de usuario, autenticación y aprobación/rechazo de solicitudes.
+        \begin{longtable}{@{}ll@{}}
+        \toprule
+        \textbf{Operación (en DATOS)} & \textbf{Descripción} \\ \midrule
+        \texttt{register} & Crea una nueva cuenta de usuario con sus datos y contraseña hasheada. Payload: \texttt{\{"nombre": ..., "correo": ..., "password": ..., "tipo": ..., ...\}}. \\
+        \texttt{login} & Verifica las credenciales (correo y contraseña) y retorna un token simulado si son válidas. Payload: \texttt{\{"correo": ..., "password": ...\}}. \\
+        \texttt{get\_user} & Obtiene los detalles de un usuario por su ID (excluyendo la contraseña). Payload: \texttt{\{"id": id\}}. \\
+        \texttt{update\_user} & Actualiza campos modificables de un usuario (nombre, teléfono, estado). Payload: \texttt{\{"id": id, "datos": \{"telefono": ..., "estado": ...\}\}}. \\
+        \texttt{update\_solicitud} & Cambia el estado de una solicitud (usado por administradores para aprobar/rechazar). Payload: \texttt{\{"solicitud\_id": id, "estado": "APROBADA|RECHAZADA"\}}. \\ \bottomrule
+        \end{longtable}
+        % Espacio para imagen de regist
+        \begin{figure}[H]
+            \centering
+            \includegraphics[width=1\linewidth]{img/regist.png}
+            \caption{Ejemplo de flujo para la operación \texttt{get\_user} del servicio \texttt{regis}.}
+            \label{fig:regist}
+        \end{figure}
+
+        \begin{figure}[H]
+            \centering
+            \includegraphics[width=1\linewidth]{img/regisdb.png}
+            \caption{Tabla Usuario: Administrador General}
+            \label{fig:db}
+        \end{figure}
+
+        \paragraph{7. Servicio de Sugerencias (\texttt{sugit})} \mbox{}\\
+        \textbf{Responsabilidad:} Registrar y administrar las sugerencias enviadas por los usuarios.
+        \begin{longtable}{@{}ll@{}}
+        \toprule
+        \textbf{Operación (en DATOS)} & \textbf{Descripción} \\ \midrule
+        \texttt{registrar\_sugerencia} & Guarda una nueva sugerencia asociada a un usuario. Payload: \texttt{\{"usuario\_id": id, "sugerencia": "..."\}}. \\
+        \texttt{listar\_sugerencias} & Devuelve una lista con todas las sugerencias registradas. Payload: \texttt{\{\}}. \\
+        \texttt{aprobar\_sugerencia} & Marca una sugerencia como 'ACEPTADA'. Payload: \texttt{\{"id": sugerencia\_id\}}. \\
+        \texttt{rechazar\_sugerencia} & Marca una sugerencia como 'RECHAZADA'. Payload: \texttt{\{"id": sugerencia\_id\}}. \\ \bottomrule
+        \end{longtable}
+        % Espacio para imagen de sugit
+
+        \begin{figure}[H]
+            \centering
+            \includegraphics[width=1\linewidth]{img/dbsugit.png}
+            \caption{Tabla Sugerencia}
+            \label{fig:sugitdb}
+        \end{figure}
+
+        \begin{figure}[H]
+            \centering
+            \includegraphics[width=1\linewidth]{img/sugit.png}
+            \caption{Ejemplo de operación \texttt{registrar\_sugerencia}}
+            \label{fig:sugit}
+        \end{figure}
+
+\subsection{Componentes de cliente} \mbox{}
+
+El sistema PrestaLab expone sus funcionalidades a los usuarios finales a través de una interfaz web implementada como una Single Page Application (SPA). Esta aplicación cliente centraliza la interacción del usuario y se comunica exclusivamente con el backend a través del Enterprise Service Bus (ESB).
+
+\begin{itemize}
+    \item \textbf{Tecnologías}: La interfaz está construida utilizando tecnologías web estándar: HTML5, CSS3 y JavaScript (ES6+). No depende de un framework específico, pero utiliza módulos JavaScript para organizar la lógica.
+    \item \textbf{Comunicación con el Backend}:
+    \begin{itemize}
+        \item Toda la comunicación con los microservicios se realiza a través del ESB, utilizando el endpoint \texttt{/route}.
+        \item Un módulo \texttt{api.js} actúa como adaptador, encapsulando las llamadas al ESB. Este módulo traduce las operaciones deseadas (ej. obtener catálogo, crear solicitud) en mensajes estructurados para el endpoint \texttt{/route} del bus.
+    \end{itemize}
+    \item \textbf{Gestión de Sesión}: Un módulo \texttt{auth.js} maneja la autenticación del usuario (login/logout) y el almacenamiento local (simulado) de la sesión y datos básicos del usuario, asegurando que las peticiones autenticadas incluyan la información necesaria.
+    \item \textbf{Configuración}: Un archivo \texttt{config.js} define parámetros clave como la URL base del ESB y los nombres lógicos de los servicios backend, facilitando la configuración y el despliegue.
+    \item \textbf{Vistas Principales}: La aplicación se organiza en distintas vistas o "páginas" (archivos HTML con su lógica JS asociada), cada una orientada a una funcionalidad específica e interactuando con los servicios correspondientes vía ESB:
+    \begin{itemize}
+        \item \textbf{Autenticación (\texttt{index.html}, \texttt{signup.html})}: Registro e inicio de sesión (Servicio: \texttt{regist}).
+        \item \textbf{Dashboard (\texttt{dashboard.html})}: Vista principal post-autenticación.
+        \item \textbf{Catálogo (\texttt{catalog.html})}: Búsqueda, filtrado y visualización de ítems. Permite iniciar solicitudes de préstamo o reserva (Servicio: \texttt{prart}).
+        \item \textbf{Mis Solicitudes (\texttt{mis-solicitudes.html})}: Listado y estado de las solicitudes del usuario (Servicio: \texttt{prart}). Incluye acciones administrativas si el usuario es Encargado (Servicio: \texttt{regist}).
+        \item \textbf{Mis Préstamos (\texttt{mis-prestamos.html})}: Visualización de préstamos activos y acciones asociadas (Servicio: \texttt{prart}).
+        \item \textbf{Mis Multas (\texttt{mis-multas.html})}: Consulta de multas pendientes (Servicio: \texttt{multa}).
+        \item \textbf{Lista de Espera (\texttt{listas-espera.html})}: Permite unirse o salir de la lista de espera para ítems no disponibles (Servicios: \texttt{lista}, \texttt{prart}).
+        \item \textbf{Sugerencias (\texttt{sugerencias.html})}: Envío y consulta de sugerencias. Incluye acciones administrativas (Servicio: \texttt{sugit}).
+        \item \textbf{Mi Perfil (\texttt{mi-perfil.html})}: Modificación de datos personales y preferencias de notificación (Servicios: \texttt{regist}, \texttt{notis}).
+        \item \textbf{Mis Notificaciones (\texttt{mis-notificaciones.html})}: Visualización de notificaciones recibidas (Servicio: \texttt{notis}). \textit{(Funcionalidad de consulta pendiente en backend)}.
+        \item \textbf{Reportes (\texttt{reportes.html})}: Generación de reportes de historial y circulación (Servicio: \texttt{gerep}).
+        \item \textbf{Administración (\texttt{admin.html})}: Panel para Encargados con gestión centralizada de usuarios y solicitudes (Servicios: \texttt{regist}, \texttt{prart}).
+    \end{itemize}
+\end{itemize}
+Este enfoque modular y centralizado en la comunicación a través del ESB asegura el desacoplamiento entre la interfaz de usuario y la lógica de negocio distribuida en los microservicios.
+
+\subsection{Componente bus: ESB} \mbox{}
+
+El Enterprise Service Bus (ESB) es el componente neurálgico de la arquitectura SOA de PrestaLab, actuando como intermediario y gestor central para toda la comunicación entre los clientes y los microservicios backend.
+
+\begin{itemize}
+    \item \textbf{Tecnología}: Implementado en Python utilizando el framework \textbf{FastAPI} para la interfaz HTTP y \textbf{SQLite} para la persistencia del registro de servicios, logs y estadísticas.
+    \item \textbf{Responsabilidades Principales}:
+    \begin{itemize}
+        \item \textbf{Registro y Descubrimiento de Servicios}: Mantiene un catálogo actualizado de los microservicios disponibles, sus ubicaciones (URLs) y los endpoints que exponen. Los servicios se registran automáticamente al iniciar. Este registro es persistente gracias a SQLite.
+        \item \textbf{Enrutamiento de Mensajes}: Centraliza la comunicación a través de un endpoint principal (\texttt{POST /route}). Recibe las peticiones de los clientes, identifica el servicio destino solicitado (\texttt{target\_service}) y redirige la petición al microservicio correspondiente según el registro.
+        \item \textbf{Interfaz HTTP RESTful}: Proporciona una interfaz basada en HTTP, facilitando la integración con clientes web y herramientas estándar, en contraste con implementaciones previas basadas en sockets TCP.
+        \item \textbf{Monitoreo y Chequeo de Salud}: Incluye funcionalidades para monitorear la disponibilidad y el estado de los servicios registrados (\texttt{GET /health/\{service\_name\}}), actualizando su estado (ACTIVO, INACTIVO, DEGRADADO) en el registro. Los servicios envían \textit{heartbeats} periódicos (\texttt{POST /heartbeat/\{service\_name\}}) para señalar su actividad.
+        \item \textbf{Persistencia}: Almacena el registro de servicios, un historial de logs de mensajes y estadísticas básicas en una base de datos SQLite (\texttt{bus\_data.db}), permitiendo la recuperación del estado tras reinicios.
+        \item \textbf{Logging y Trazabilidad}: Registra las interacciones (peticiones recibidas, enrutamiento, respuestas) utilizando \textbf{Trace IDs} únicos para facilitar el seguimiento de una transacción completa a través de múltiples componentes. Los logs son visibles en consola con formato y colores distintivos.
+        \item \textbf{Desacoplamiento}: Abstrae la ubicación física y los detalles de comunicación de los microservicios, permitiendo que los clientes interactúen con ellos a través de nombres lógicos sin necesidad de conocer sus URLs directas.
+    \end{itemize}
+    \item \textbf{Endpoints Principales (Puerto 8000)}:
+    \begin{itemize}
+        \item \texttt{GET /}: Información general y endpoints disponibles del bus.
+        \item \texttt{POST /register}: Endpoint para el auto-registro de servicios.
+        \item \texttt{DELETE /unregister/\{service\_name\}}: Endpoint para desregistrar un servicio.
+        \item \texttt{GET /discover}: Lista los servicios actualmente registrados y su estado.
+        \item \texttt{POST /route}: Recibe y enruta las peticiones de los clientes a los servicios destino.
+        \item \texttt{GET /health/\{service\_name\}}: Consulta el estado de salud de un servicio específico.
+        \item \texttt{POST /heartbeat/\{service\_name\}}: Recibe los "latidos" de los servicios activos.
+        \item \texttt{GET /logs}: Proporciona acceso a los logs recientes de mensajes procesados por el bus.
+        \item \texttt{GET /stats}: Ofrece estadísticas operativas del bus (total de servicios, mensajes, errores).
+        \item \texttt{GET /ping}: Endpoint básico para verificar si el bus está operativo.
+        \item \texttt{GET /docs}: Documentación interactiva (Swagger UI) de la API del ESB.
+    \end{itemize}
+\end{itemize}
+El ESB, por lo tanto, no solo facilita la comunicación sino que también aporta capacidades de gestión, monitoreo y resiliencia a la arquitectura SOA del sistema PrestaLab.
+
+\section{Análisis crítico del sistema (entrega 3)}
+    \subsection{Problemas identificados}
+        \subsubsection{Componentes de servicio}
+            En el diseño, desarrollo y despliegue se evidenció un problema desde el comienzo: los servicios pueden no comunicarse correctamente entre sí y la BBDD, debiéndose a las relaciones complejas entre las entidades del modelo de datos. 
+        \subsubsection{Componentes de cliente}
+            El frontend (la interfaz web) se construyó para funcionar con el primer bus que hicimos (el ESB basado en HTTP). Con ese bus, el frontend funcionaba correctamente, mostrando los datos y permitiendo las acciones. El problema principal surgió cuando tuvimos que cambiar al bus TCP requerido por el proyecto. Como el frontend estaba diseñado para el bus anterior, dejó de funcionar por completo al cambiar el bus, ya que la forma de comunicarse era totalmente diferente.
+        \subsubsection{Componente bus:}
+            Al principio, habíamos construido un bus de servicios moderno (un ESB que usaba HTTP, como una API). Todo el frontend lo hicimos pensando en conectarse a ese bus. Pero después, nos dimos cuenta de que el bus que hicimos no era el solicitado, por lo que tuvimos que cambiarlo para usar un bus más antiguo (solicitado para este trabajo)que funciona con otro sistema (TCP Sockets y un protocolo específico \texttt{NNNNNSSSSSDATOS}) \mbox{}. Tuvimos que descartar el bus moderno y empezar a trabajar con el bus TCP solicitado, lo que significó un cambio grande y nos atrasó.
+    \subsection{Soluciones desplegadas}
+        \subsubsection{Componentes de servicio}
+           Para abordar los problemas de comunicación y las complejidades del modelo de datos, se inició la adaptación de cada servicio \mbox{}. La solución principal requería modificar cómo cada servicio se conecta al bus (usando sockets TCP), cómo se registra (\texttt{sinit}), cómo recibe los mensajes (leyendo los 5 bytes de longitud, luego el nombre del servicio y los datos) y cómo envía las respuestas (formateando todo según el protocolo \texttt{NNNNNSSSSSSTDATOS}) \mbox{}. Debido al tiempo que tomó el cambio fundamental del bus, esta adaptación de todos los servicios para que funcionen correctamente con el bus TCP y manejen adecuadamente las interacciones con la base de datos quedó implementada de manera apresurada, sin poder asegurar el funcionamiento perfecto a la fecha de esta entrega.
+        \subsubsection{Componentes de cliente}
+            Dado el cambio obligatorio al bus TCP, la solución para el frontend implica rehacer la capa de comunicación (principalmente el archivo \texttt{api.js} y cómo las distintas vistas lo utilizan) para que pueda "hablar" el protocolo \texttt{NNNNNSSSSSDATOS} a través de WebSockets o un intermediario similar, en lugar de usar peticiones HTTP directas al bus ESB. Este trabajo quedó pendiente debido al tiempo que consumió el cambio del bus.
+        
+        \subsubsection{Componente bus: ESB}
+            Para solucionar el problema del bus, adoptamos el bus TCP que se requería \mbox{}. Esto implicó ajustar cómo los servicios (\texttt{servicioSOA.py}) y los clientes (\texttt{clienteSOA.py}, y la lógica en \texttt{api.js} del frontend) se comunican, para que usaran el protocolo \texttt{NNNNNSSSSSDATOS} a través de sockets TCP en lugar de HTTP \mbox{}. Aunque tuvimos que rehacer esa parte y perdimos tiempo, logramos que el sistema se comunicara usando la arquitectura SOA solicitada con el bus TCP funcionando como intermediario central..
+        \subsubsection{Otros}
+\section{Anexo}
+  \href{https://github.com/alexisnasus/prestalab_SOA/blob/main}{Repositorio GitHub} 
+\end{document}

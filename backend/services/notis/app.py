@@ -71,6 +71,14 @@ def crear_notificacion(payload: dict, db: Session):
         if not all([usuario_id, canal, tipo, mensaje]):
             return "NK", json.dumps({"error": "Faltan campos requeridos: usuario_id, canal, tipo, mensaje"})
         
+        # Convertir canal de string a int si es necesario
+        # CANAL: 1=PORTAL, 2=WHATSAPP, 3=EMAIL
+        if isinstance(canal, str):
+            canal_map = {"PORTAL": 1, "WHATSAPP": 2, "EMAIL": 3}
+            canal = canal_map.get(canal.upper())
+            if canal is None:
+                return "NK", json.dumps({"error": "Canal inválido. Debe ser: PORTAL, WHATSAPP o EMAIL (o 1, 2, 3)"})
+        
         nueva_notificacion = Notificacion(
             usuario_id=usuario_id,
             canal=canal,
@@ -90,10 +98,12 @@ def crear_notificacion(payload: dict, db: Session):
         
     except SQLAlchemyError as e:
         db.rollback()
+        print(f"[NOTIS] SQLAlchemyError al crear notificación: {e}")
         if "foreign key constraint fails" in str(e).lower():
             return "NK", json.dumps({"error": f"El usuario con ID {usuario_id} no existe"})
-        return "NK", json.dumps({"error": "Error al registrar la notificación"})
+        return "NK", json.dumps({"error": f"Error al registrar la notificación: {str(e)}"})
     except Exception as e:
+        print(f"[NOTIS] Exception al crear notificación: {e}")
         return "NK", json.dumps({"error": f"Error al crear notificación: {str(e)}"})
 
 def obtener_preferencias(payload: dict, db: Session):
@@ -115,8 +125,10 @@ def obtener_preferencias(payload: dict, db: Session):
         })
         
     except SQLAlchemyError as e:
-        return "NK", json.dumps({"error": "Error al consultar las preferencias"})
+        print(f"[NOTIS] SQLAlchemyError al obtener preferencias: {e}")
+        return "NK", json.dumps({"error": f"Error al consultar las preferencias: {str(e)}"})
     except Exception as e:
+        print(f"[NOTIS] Exception al obtener preferencias: {e}")
         return "NK", json.dumps({"error": f"Error al obtener preferencias: {str(e)}"})
 
 def actualizar_preferencias(payload: dict, db: Session):
@@ -142,8 +154,10 @@ def actualizar_preferencias(payload: dict, db: Session):
         
     except SQLAlchemyError as e:
         db.rollback()
-        return "NK", json.dumps({"error": "Error al actualizar las preferencias"})
+        print(f"[NOTIS] SQLAlchemyError al actualizar preferencias: {e}")
+        return "NK", json.dumps({"error": f"Error al actualizar las preferencias: {str(e)}"})
     except Exception as e:
+        print(f"[NOTIS] Exception al actualizar preferencias: {e}")
         return "NK", json.dumps({"error": f"Error al actualizar preferencias: {str(e)}"})
 
 # --- Main Loop ---
@@ -199,8 +213,17 @@ def main():
             print(f"\n[NOTIS] ===== Nueva transacción =====")
             print(f"[NOTIS] Datos recibidos: {message_str!r}")
             
+            # El bus envía: SSSSS + DATOS, necesitamos solo DATOS
+            # Quitar los primeros 5 caracteres (nombre del servicio)
+            if len(message_str) > 5:
+                message_data = message_str[5:]
+            else:
+                message_data = message_str
+
+            print(f"[NOTIS] Datos sin prefijo: {message_data!r}")
+
             # Procesar la solicitud
-            status, response_data = handle_request(message_str)
+            status, response_data = handle_request(message_data)
             
             # Enviar respuesta al bus
             send_response(sock, status, response_data)
