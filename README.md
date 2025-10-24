@@ -1,11 +1,6 @@
-```markdown
 # PrestaLab SOA
 
 Sistema de préstamos bibliotecarios con **Arquitectura Orientada a Servicios (SOA)** y **Bus de Servicios TCP**.
-
----
-
-```
 
 ### Componentes Principales
 
