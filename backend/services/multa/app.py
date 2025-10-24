@@ -81,7 +81,7 @@ def get_multas_usuario(payload: dict, db: Session):
                 "id": m.id,
                 "prestamo_id": m.prestamo_id,
                 "motivo": m.motivo,
-                "valor": m.valor,
+                "valor": float(m.valor),
                 "estado": m.estado,
                 "registro_instante": m.registro_instante.isoformat()
             } for m in multas
