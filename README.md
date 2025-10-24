@@ -5,31 +5,6 @@ Sistema de préstamos bibliotecarios con **Arquitectura Orientada a Servicios (S
 
 ---
 
-## Arquitectura del Sistema
-
-```
-
-```
-                    ┌─────────────┐
-                    │  CLIENTES   │
-                    └──────┬──────┘
-                           │
-                ┌──────────▼──────────┐
-                │  🚌 BUS SOA (TCP)   │  <-- Protocolo TCP Socket
-                │  localhost:5000     │     NNNNNSSSSSDATOS
-                └──────────┬──────────┘
-                           │
-    ┌──────┬──────┬────────┼────────┬──────┬──────┐
-    ▼      ▼      ▼        ▼        ▼      ▼      ▼
- gerep  lista  multa    notis    prart  regis  sugit
-                          │
-                   ┌──────▼──────┐
-                   │ MySQL:3307  │
-                   │ phpMyAdmin  │
-                   │   :8088     │
-                   └─────────────┘
-```
-
 ```
 
 ### Componentes Principales
@@ -259,32 +234,6 @@ URL: http://localhost:8088
 
 -----
 
-## Troubleshooting
-
-### El servicio no se conecta al bus
-
-1.  Verificar que el bus (`soa_bus`) esté corriendo: `docker logs soa_bus`. Debería indicar "Bus SOA escuchando...".
-2.  Verificar que el servicio esté en la misma red Docker (`soa_net`).
-3.  Revisar logs del servicio específico: `docker logs soa_regist`. Buscar errores al conectar a `('bus', 5000)`.
-
-### Error "Connection refused" en servicios
-
-  * El bus (`soa_bus`) no está corriendo o no inició correctamente. Ejecutar: `docker-compose up -d bus`.
-  * Problema de red en Docker. Intentar reiniciar Docker o `docker-compose down && docker-compose up -d`.
-
-### El servicio no responde a las solicitudes
-
-  * Verificar registro `sinit` en logs del servicio y confirmación `OK` del bus.
-  * Revisar logs del servicio para ver si recibió la transacción.
-  * Verificar nombre del servicio (`SSSSS`, 5 chars) y `OPERACION` en el mensaje enviado.
-
-### Errores de base de datos en servicios
-
-  * Verificar que MySQL (`soa_db`) esté corriendo y saludable: `docker-compose ps`.
-  * Verificar `DATABASE_URL` en `docker-compose.yml`.
-  * Si persisten problemas: `docker-compose down --volumes && docker-compose up --build -d` (Borra todos los datos).
-
------
 
 ## Referencias
 
