@@ -86,9 +86,11 @@ def obtener_todos_los_items(db: Session):
                 "id": item.id,
                 "nombre": item.nombre,
                 "tipo": item.tipo,
-                "autor": item.autor,
-                "editorial": item.editorial,
-                "anio_publicacion": item.anio_publicacion
+                "descripcion": item.descripcion,
+                "cantidad": item.cantidad,
+                "cantidad_max": item.cantidad_max,
+                "valor": float(item.valor),
+                "tarifa_atraso": float(item.tarifa_atraso)
             }
             for item in items
         ]
@@ -114,9 +116,11 @@ def buscar_items(payload: dict, db: Session):
                 "id": item.id,
                 "nombre": item.nombre,
                 "tipo": item.tipo,
-                "autor": item.autor,
-                "editorial": item.editorial,
-                "anio_publicacion": item.anio_publicacion
+                "descripcion": item.descripcion,
+                "cantidad": item.cantidad,
+                "cantidad_max": item.cantidad_max,
+                "valor": float(item.valor),
+                "tarifa_atraso": float(item.tarifa_atraso)
             }
             for item in items
         ]
@@ -441,8 +445,17 @@ def main():
             print(f"\n[PRART] ===== Nueva transacción =====")
             print(f"[PRART] Datos recibidos: {message_str!r}")
             
+            # El bus envía: SSSSS + DATOS, necesitamos solo DATOS
+            # Quitar los primeros 5 caracteres (nombre del servicio)
+            if len(message_str) > 5:
+                message_data = message_str[5:]
+            else:
+                message_data = message_str
+            
+            print(f"[PRART] Datos sin prefijo: {message_data!r}")
+            
             # Procesar la solicitud
-            status, response_data = handle_request(message_str)
+            status, response_data = handle_request(message_data)
             
             # Enviar respuesta al bus
             send_response(sock, status, response_data)
