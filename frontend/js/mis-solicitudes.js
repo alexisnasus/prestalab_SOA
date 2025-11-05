@@ -1,4 +1,4 @@
-// mis-solicitudes.js — Listar solicitudes del usuario (PRART) con control de admin (CORREGIDO)
+// mis-solicitudes.js — (CORREGIDO PARA NUEVA API)
 (function () {
   const S = window.PRESTALAB?.SERVICES || {};
   const results = document.getElementById("solWrap");
@@ -6,7 +6,7 @@
   const AUTH_SERVICE = S.AUTH || 'regist'; // Servicio para actualizar estado
   const CATALOG_SERVICE = S.CATALOG || 'prart'; // Servicio para listar
 
-  // ---------- UI ----------
+  // ---------- UI (Sin cambios) ----------
   const setBanner = (msg, ok = false, extra = null) => {
     state.innerHTML = "";
     const p = document.createElement("div");
@@ -32,19 +32,23 @@
   const clearBanner = () => { state.style.display = "none"; };
   const setLoading = (on = true) => { if (on) results.innerHTML = '<p style="opacity:.7">Cargando…</p>'; };
 
-  // ---------- ADMIN ----------
+  // ---------- ADMIN (Sin cambios) ----------
   const isAdmin = (() => {
     const correo = window.Auth?.getEmail?.() || "";
     const admins = window.PRESTALAB?.ADMIN_EMAILS || ["admin.prestalab@udp.cl"];
     return admins.includes(correo);
   })();
 
-  // --- FUNCIÓN DE APROBAR CORREGIDA ---
+  // --- FUNCIÓN DE APROBAR (CORREGIDA) ---
   async function aprobarSolicitud(id) {
     if (!confirm(`¿Aprobar la solicitud #${id}?`)) return;
     try {
-      // LLAMAMOS AL SERVICIO CORRECTO (regist) PARA CAMBIAR EL ESTADO
-      await API.put(AUTH_SERVICE, `/solicitudes/${id}/actualizar`, { estado: "APROBADA" }, { auth: true });
+      // ANTES: await API.put(AUTH_SERVICE, `/solicitudes/${id}/actualizar`, ...);
+      // AHORA:
+      // Esta operación está en el servicio 'regist'
+      const payload = { solicitud_id: Number(id), estado: "APROBADA" };
+      await API.updateSolicitud(payload);
+      
       setBanner(`Solicitud #${id} aprobada.`, true);
       await buscarSolicitudes(); // Recargar la lista
     } catch (e) {
@@ -52,12 +56,16 @@
     }
   }
 
-  // --- FUNCIÓN DE RECHAZAR CORREGIDA ---
+  // --- FUNCIÓN DE RECHAZAR (CORREGIDA) ---
   async function rechazarSolicitud(id) {
     if (!confirm(`¿Rechazar la solicitud #${id}?`)) return;
     try {
-      // LLAMAMOS AL SERVICIO CORRECTO (regist) PARA CAMBIAR EL ESTADO
-      await API.put(AUTH_SERVICE, `/solicitudes/${id}/actualizar`, { estado: "RECHAZADA" }, { auth: true });
+      // ANTES: await API.put(AUTH_SERVICE, `/solicitudes/${id}/actualizar`, ...);
+      // AHORA:
+      // Esta operación está en el servicio 'regist'
+      const payload = { solicitud_id: Number(id), estado: "RECHAZADA" };
+      await API.updateSolicitud(payload);
+      
       setBanner(`Solicitud #${id} rechazada.`, true);
       await buscarSolicitudes(); // Recargar la lista
     } catch (e) {
@@ -65,9 +73,9 @@
     }
   }
 
-  // ---------- RENDER ----------
+  // ---------- RENDER (Sin cambios) ----------
+  // Tu función de renderizado ya funciona con los datos que devuelve prart/app.py
   function render(list) {
-    // ... (El código de render no necesita cambios, se mantiene igual)
     results.innerHTML = "";
     const items = Array.isArray(list) ? list : [];
 
@@ -80,7 +88,8 @@
     grid.className = "sol-grid";
 
     items.forEach((s) => {
-      const itemName = s.articulo_nombre ?? s.item_nombre ?? (Array.isArray(s.items) && s.items[0]?.nombre) ?? "—";
+      // prart/app.py get_solicitudes devuelve 'items'
+      const itemName = (Array.isArray(s.items) && s.items[0]?.nombre) ?? s.articulo_nombre ?? s.item_nombre ?? "—";
       const card = document.createElement("article");
       card.className = "sol-card";
       card.innerHTML = `
@@ -89,8 +98,8 @@
           <span class="sol-badge ${String(s.estado || "").toLowerCase()}">${s.estado ?? "—"}</span>
         </div>
         <h3 class="sol-title">${s.tipo ?? "—"}</h3>
-        <p class="sol-item"><strong>Artículo:</strong> ${itemName}</p>
-        <p class="sol-date"><strong>Fecha:</strong> ${s.registro_instante ?? s.creada_en ?? "—"}</p>
+        <p class="sol-item"><strong>Ítem(s):</strong> ${itemName}</p>
+        <p class="sol-date"><strong>Fecha:</strong> ${new Date(s.registro_instante).toLocaleString() ?? s.creada_en ?? "—"}</p>
       `;
 
       if (isAdmin && String(s.estado).toUpperCase() === "PENDIENTE") {
@@ -118,42 +127,32 @@
     results.appendChild(grid);
   }
 
-  // ---------- FLUJO PRINCIPAL Y HELPERS (sin cambios) ----------
-  function normalizeSolicitudes(resp) { /* ...código sin cambios... */ }
-  async function fetchSolicitudes({ uid, correo }) { /* ...código sin cambios... */ }
-  async function resolveUserIdByCorreo(correo) { /* ...código sin cambios... */ }
-  async function buscarSolicitudes() { /* ...código sin cambios... */ }
-
-  // ... (Pega aquí las funciones sin cambios de tu archivo original)
+  // ---------- FLUJO PRINCIPAL Y HELPERS (CORREGIDOS) ----------
+  
   function normalizeSolicitudes(resp) {
-    const body = resp && typeof resp === "object" && "data" in resp ? resp.data : resp;
-    if (Array.isArray(body)) return body;
+    // prart/app.py devuelve { "solicitudes": [...] }
+    const body = resp && typeof resp === "object" ? resp : {};
     if (Array.isArray(body?.solicitudes)) return body.solicitudes;
-    if (Array.isArray(body?.data)) return body.data;
+    if (Array.isArray(body)) return body;
     return [];
   }
 
-  async function fetchSolicitudes({ uid, correo }) {
-    const params = new URLSearchParams();
-    if (uid && /^\d+$/.test(String(uid))) params.set("usuario_id", String(uid));
-    if (correo) params.set("correo", correo); // Corregido para enviar siempre el correo
-    const endpoint = `/solicitudes?${params.toString()}`;
-    const resp = await API.get(CATALOG_SERVICE, endpoint, { auth: true });
-    return { endpoint, resp, solicitudes: normalizeSolicitudes(resp.solicitudes) };
+  // --- CORREGIDO: ahora usa la nueva API ---
+  async function fetchSolicitudes({ correo }) {
+    // prart/app.py
+    // get_solicitudes puede buscar solo por email, así que 'uid' no es necesario.
+    const payload = { correo: correo };
+    
+    // ANTES: const resp = await API.get(CATALOG_SERVICE, endpoint, { auth: true });
+    // AHORA:
+    const resp = await API.getSolicitudes(payload);
+    
+    return { solicitudes: normalizeSolicitudes(resp) };
   }
 
-  async function resolveUserIdByCorreo(correo) {
-    try {
-      const r = await API.get(AUTH_SERVICE, `/usuarios?correo=${encodeURIComponent(correo)}`, { auth: true });
-      const body = r && typeof r === "object" && "data" in r ? r.data : r;
-      if (Array.isArray(body) && body[0]?.id) return body[0].id;
-      if (body?.id) return body.id;
-    } catch (_) {}
-    const legacy = localStorage.getItem("pl_user_id");
-    if (legacy && /^\d+$/.test(legacy)) return Number(legacy);
-    return null;
-  }
+  // --- ELIMINADO: `resolveUserIdByCorreo` ya no es necesario ---
 
+  // --- CORREGIDO: Lógica simplificada ---
   async function buscarSolicitudes() {
     clearBanner();
     setLoading(true);
@@ -164,14 +163,10 @@
       setLoading(false);
       return;
     }
-
-    let uid = localStorage.getItem("pl_user_id");
-    if (!uid) {
-        uid = await resolveUserIdByCorreo(correo);
-    }
     
     try {
-      let { solicitudes } = await fetchSolicitudes({ uid, correo });
+      // Ya no necesitamos 'uid', solo pasamos el correo
+      let { solicitudes } = await fetchSolicitudes({ correo });
       render(solicitudes);
       setBanner(`Solicitudes cargadas (${solicitudes.length})`, true);
     } catch (e) {
@@ -181,7 +176,7 @@
     }
   }
 
-  // ---------- INIT ----------
+  // ---------- INIT (Sin cambios) ----------
   (function init() {
     window.Auth?.requireAuth?.();
     const user = window.Auth?.getUser?.();

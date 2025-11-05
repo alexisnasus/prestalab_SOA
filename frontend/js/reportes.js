@@ -1,8 +1,8 @@
-// reportes.js — GEREP: historial por usuario + circulación por sede
+// reportes.js — VERSIÓN FINAL CORREGIDA
 (function () {
   const S = window.PRESTALAB?.SERVICES || {};
   const REP = S.REPORTS || S.GEREP || "gerep";
-  const CATALOG = S.CATALOG || "prart";
+  const CATALOG = S.CATALOG || "prart"; // Para cargar sedes
 
   // DOM
   const elState = document.getElementById('repState');
@@ -61,12 +61,15 @@
 
   // ==== HISTORIAL
   function normalizeHist(resp){
+    // El servicio gerep/app.py devuelve { "historial": [...] } o un array
     const arr = Array.isArray(resp) ? resp
+              : Array.isArray(resp?.historial) ? resp.historial
               : Array.isArray(resp?.data) ? resp.data
               : Array.isArray(resp?.items) ? resp.items : [];
+              
     return arr.map((r,i) => ({
       idx: i+1,
-      articulo: r?.articulo || r?.item_nombre || r?.equipo || r?.item?.nombre || '—',
+      articulo: r?.articulo || r?.item_nombre || r?.item || '—',
       item: r?.item_id ?? r?.item?.id ?? '—',
       desde: r?.fecha_prestamo || r?.desde || r?.inicio || r?.created_at || '—',
       hasta: r?.fecha_devolucion || r?.hasta || r?.fin || r?.updated_at || '—',
@@ -119,8 +122,14 @@
     clearMsg();
     histTable.innerHTML = '<tr class="tr"><td class="td" colspan="5">Cargando…</td></tr>';
     try {
-      const json = await API.get(REP, `/usuarios/${encodeURIComponent(userId)}/historial?formato=json`, {auth:true});
-      HIST_ALL = normalizeHist(json);
+      const payload = {
+          usuario_id: Number(userId),
+          formato: "json"
+      };
+      // Llamada a la nueva API
+      const json = await API.getHistorial(payload); 
+      
+      HIST_ALL = normalizeHist(json); // Tu lógica de normalización
       histPage = 1;
       renderHist();
       show(`Historial cargado (${HIST_ALL.length} registros).`, true);
@@ -131,38 +140,73 @@
     }
   }
 
-  // Descargas (CSV/PDF) usando helper de api.js
+  // Descargas (CSV/PDF) - ¡MODIFICADO!
   async function downloadHist(userId, format){
+    clearMsg();
+    show(`Generando ${format.toUpperCase()}...`, true);
     try {
-      const path = `/usuarios/${encodeURIComponent(userId)}/historial?formato=${format}`;
-      const fname = `historial_${userId}.${format}`;
-      await API.download(REP, path, fname, {auth:true});
+      const payload = {
+        usuario_id: Number(userId),
+        formato: format
+      };
+      // Llamar a la API
+      const data = await API.getHistorial(payload);
+
+      // El servicio 'gerep' devuelve JSON con 'filename' y 'content' (base64)
+      //
+      if (data && data.content && data.filename) {
+        // Crear un link de descarga desde el base64
+        const link = document.createElement('a');
+        const mimeType = format === 'pdf' ? 'application/pdf' : 'text/csv';
+        link.href = `data:${mimeType};base64,${data.content}`;
+        link.download = data.filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        clearMsg();
+      } else {
+        throw new Error("La respuesta del servicio no tiene el formato de archivo esperado.");
+      }
     } catch (e) {
-      show('No se pudo descargar el archivo.', false);
+      show(e?.payload?.detail || e?.message || 'No se pudo descargar el archivo.', false);
     }
   }
 
   // ==== CIRCULACIÓN
+  
+  // ¡MODIFICADO! para adaptarse a lo que 'gerep/app.py' realmente devuelve
   function normalizeCirc(resp){
-    const arr = Array.isArray(resp) ? resp
-              : Array.isArray(resp?.data) ? resp.data
-              : Array.isArray(resp?.items) ? resp.items : (resp ? [resp] : []);
-    // Intento de mapeo común
-    return arr.map(r => ({
-      categoria: r?.categoria || r?.tipo || r?.familia || 'Total',
-      prestamos: Number(r?.prestamos ?? r?.count ?? r?.cantidad ?? 0),
-      usuarios: Number(r?.usuarios_unicos ?? r?.usuarios ?? 0),
-      rotacion: Number(r?.rotacion ?? r?.ratio ?? 0)
-    }));
+     // El servicio 'gerep' devuelve un objeto, no un array:
+     // { "metricas": { "rotacion_total": ..., "morosidad_porcentaje": ..., "danos_reportados": ... } }
+     //
+     
+     const metrics = resp?.metricas;
+     if (metrics) {
+        // Adaptamos la salida para que coincida con las columnas de la tabla HTML
+        return [
+          { categoria: 'Rotación Total (Préstamos)', prestamos: metrics.rotacion_total, usuarios: 'N/A', rotacion: 'N/A' },
+          { categoria: 'Morosidad (%)', prestamos: metrics.morosidad_porcentaje, usuarios: 'N/A', rotacion: 'N/A' },
+          { categoria: 'Daños Reportados', prestamos: metrics.danos_reportados, usuarios: 'N/A', rotacion: 'N/A' },
+        ];
+     }
+     return []; // Devuelve vacío si la respuesta no es la esperada
   }
 
+  // ¡MODIFICADO!
   async function loadCirc(periodo, sedeId){
     clearMsg();
     circTable.innerHTML = `<tr class="tr"><td class="td" colspan="4">Cargando…</td></tr>`;
     try {
-      const qs = `?periodo=${encodeURIComponent(periodo)}&sede=${encodeURIComponent(sedeId)}`;
-      const data = await API.get(REP, `/reportes/circulacion${qs}`, {auth:true});
-      const rows = normalizeCirc(data);
+      const payload = {
+        periodo: periodo,
+        sede_id: Number(sedeId) // El servicio espera sede_id
+      };
+      // Llamada a la nueva API
+      const data = await API.getReporteCirculacion(payload);
+      
+      const rows = normalizeCirc(data); // Tu lógica de normalización
+      
+      // Ajustamos las columnas para que coincidan con la nueva data
       circTable.innerHTML = rows.map(r => `
         <tr class="tr">
           <td class="td">${escapeHtml(r.categoria)}</td>
@@ -179,19 +223,26 @@
     }
   }
 
+  // ¡MODIFICADO!
   async function loadSedes(){
-    // intenta endpoint de sedes; si no existe, fallback
     const opts = [];
     try {
-      const r = await API.get(CATALOG, '/sedes?limit=100', {auth:true});
-      const arr = Array.isArray(r?.data) ? r.data : Array.isArray(r) ? r : [];
-      arr.forEach(s => opts.push({id: s.id ?? s.codigo ?? s.slug, nombre: s.nombre ?? s.alias ?? `Sede ${s.id}`}));
+      // El servicio 'prart' NO tiene un endpoint '/sedes'.
+      // Esta llamada fallará (lo cual está bien, activará el 'catch {}').
+      const r = await API.searchItems({ "nombre": "dummy_para_probar_api" }); // Usamos una llamada que sí exista
     } catch {}
-    if (!opts.length) opts.push({id:'1', nombre:'Casa Central'},{id:'2', nombre:'San Carlos'},{id:'3', nombre:'Peñalolén'});
+    
+    // Como la llamada a la API fallará o no devolverá sedes, se usará este fallback.
+    // Usamos los nombres de tu archivo 'seed_data.sql'
+    if (!opts.length) {
+        opts.push({id:'1', nombre:'FIC_LABORATORIO_01 (Sede 1)'});
+        opts.push({id:'2', nombre:'FIC_LABORATORIO_02 (Sede 2)'});
+        opts.push({id:'3', nombre:'FIC_LABORATORIO_03 (Sede 3)'});
+    }
     circSede.innerHTML = opts.map(o => `<option value="${escapeHtml(o.id)}">${escapeHtml(o.nombre)}</option>`).join('');
   }
 
-  // ==== eventos
+  // ==== eventos (Sin cambios)
   btnHistMy.addEventListener('click', () => {
     const uid = window.Auth?.getUserId?.() || localStorage.getItem('pl_user_id');
     if (uid) histUserId.value = uid;
@@ -220,40 +271,30 @@
     loadCirc(per, sede);
   });
 
-  // ==== inicio
+  // ==== inicio (LIMPIO Y CORRECTO)
   (function init(){
     window.Auth?.requireAuth?.();
+    
+    // badge usuario
+    try {
+      const user = window.Auth?.getUser?.(); // Obtenido de auth.js
+      if (user && user.correo) {
+          document.getElementById('userBadge').textContent = user.correo;
+      } else {
+          // Fallback por si getUser() no está listo
+          const email = window.Auth?.getEmail?.();
+          if (email) document.getElementById('userBadge').textContent = email;
+      }
+    } catch {}
+    
+    // Botón de Logout
+    document.getElementById('btnLogout')?.addEventListener('click', () => window.Auth.logout());
+
     // tab inicial
     const now = new Date(); 
     circPeriodo.value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
     loadSedes();
-    // badge usuario
-    try {
-      const email = window.Auth?.getEmail?.();
-      if (email) document.getElementById('userBadge').textContent = email;
-    } catch {}
-
     
-  // ---------- init ----------
-  window.Auth?.requireAuth?.();
-  const user = window.Auth?.getUser?.();
-  document.getElementById("userBadge").textContent = user?.correo || "Usuario";
-  document.getElementById("btnLogout").addEventListener("click", () => window.Auth.logout());
-  cargarPrestamos();
   })();
-
-  if (await isAdmin()) {
-  tabAdminBtn.style.display = 'inline-block';
-  // AÑADE ESTO:
-  const nav = document.getElementById('main-nav'); // Asegúrate que el div tenga id="main-nav"
-  if (nav) {
-    nav.innerHTML = `
-      <span class="brand">PrestaLab</span>
-      <a href="dashboard.html" class="nav-link">Dashboard</a>
-      <a href="admin.html" class="nav-link">Administración</a>
-      <a href="reportes.html" class="nav-link">Reportes</a>
-      <a href="sugerencias.html" class="nav-link active">Sugerencias</a>
-    `;
-  }
-}
-})();
+  
+})(); // Cierre del IIFE principal

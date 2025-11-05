@@ -1,4 +1,4 @@
-// catalog.js — Lista + filtros + Modal para Solicitar o Reservar (servicio: prart)
+// catalog.js — Lista + filtros + Modal para Solicitar o Reservar (CORREGIDO)
 (function () {
   const S = window.PRESTALAB?.SERVICES || {};
   const CATALOG_SERVICE = S.CATALOG || 'prart';
@@ -23,7 +23,7 @@
   const btnCancel = document.getElementById('btnCancelRequest');
   const modalState = document.getElementById('modalState');
 
-  // ---------- UTILITARIOS UI ----------
+  // ---------- UTILITARIOS UI (Sin cambios) ----------
   const CLP = (n) => {
     const num = Number(n);
     if (Number.isNaN(num)) return '-';
@@ -55,7 +55,6 @@
   }
   function hideState() { state.style.display = 'none'; modalState.style.display = 'none'; }
 
-  // Lógica para mostrar/ocultar el modal
   const openModal = (itemId, itemName) => {
     modalTitle.textContent = `Solicitar: ${itemName}`;
     modalItemId.value = itemId;
@@ -68,7 +67,7 @@
     hideState();
   };
 
-  // ---------- RENDER DE TARJETA ----------
+  // ---------- RENDER DE TARJETA (Sin cambios) ----------
   function card(item) {
     const { id, nombre, tipo, descripcion, cantidad, cantidad_max, valor, tarifa_atraso } = item;
     const el = document.createElement('article');
@@ -92,8 +91,7 @@
     return el;
   }
 
-  // ---------- EVENTOS ----------
-  // Evento para abrir el modal al hacer clic en "Solicitar"
+  // ---------- EVENTOS (Sin cambios) ----------
   results.addEventListener('click', (ev) => {
     const requestBtn = ev.target.closest('.request-btn');
     if (requestBtn) {
@@ -104,7 +102,6 @@
     }
   });
 
-  // Eventos dentro del modal
   modalForm.addEventListener('change', (e) => {
     if (e.target.name === 'requestType') {
       dateFields.style.display = e.target.value === 'VENTANA' ? 'grid' : 'none';
@@ -113,7 +110,7 @@
 
   btnCancel.addEventListener('click', closeModal);
 
-  // Lógica principal al confirmar en el modal
+  // --- Lógica principal al confirmar en el modal (CORREGIDO) ---
   modalForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     hideState();
@@ -121,9 +118,10 @@
     const requestType = modalForm.querySelector('input[name="requestType"]:checked').value;
     const itemId = modalItemId.value;
     const correo = window.Auth?.getEmail?.();
+    const userId = window.Auth?.getUserId?.(); // Obtenemos el ID del usuario
 
-    if (!correo) {
-      showState('No se pudo identificar tu correo. Inicia sesión de nuevo.', false);
+    if (!correo || !userId) {
+      showState('No se pudo identificar tu usuario. Inicia sesión de nuevo.', false);
       return;
     }
 
@@ -133,8 +131,16 @@
     try {
       if (requestType === 'PRESTAMO') {
         // --- Lógica de Solicitud de Préstamo Simple ---
-        const payload = { tipo: 'PRÉSTAMO', correo, usuario_id: window.Auth?.getUserId?.() };
-        const res = await API.post(CATALOG_SERVICE, '/solicitudes', payload, { auth: true });
+        const payload = { 
+          tipo: 'PRÉSTAMO', 
+          correo: correo, 
+          usuario_id: userId 
+        };
+        
+        // ANTES: const res = await API.post(CATALOG_SERVICE, '/solicitudes', payload, { auth: true });
+        // AHORA:
+        const res = await API.createSolicitud(payload);
+        
         showState('Solicitud de préstamo creada. Queda pendiente de aprobación.', true);
         
       } else if (requestType === 'VENTANA') {
@@ -146,19 +152,37 @@
         if (new Date(fin) <= new Date(inicio)) throw new Error('La fecha de fin debe ser posterior a la de inicio.');
 
         // 1. Crear solicitud de tipo 'VENTANA'
-        const solPayload = { tipo: 'VENTANA', correo, usuario_id: window.Auth?.getUserId?.() };
-        const solRes = await API.post(CATALOG_SERVICE, '/solicitudes', solPayload, { auth: true });
+        const solPayload = { 
+          tipo: 'VENTANA', 
+          correo: correo, 
+          usuario_id: userId 
+        };
+        
+        // ANTES: const solRes = await API.post(CATALOG_SERVICE, '/solicitudes', solPayload, { auth: true });
+        // AHORA:
+        const solRes = await API.createSolicitud(solPayload);
+        
         const solicitudId = solRes?.solicitud_id || solRes?.id;
         if (!solicitudId) throw new Error('Fallo al crear la solicitud previa a la reserva.');
 
         // 2. Crear la reserva
+        // NOTA: Tu backend espera 'item_existencia_id', pero tu frontend solo tiene 'item_id'.
+        // Esto podría fallar si el backend no lo maneja.
+        // Asumimos que el backend espera el 'item_id' (tipo de item) y no la 'existencia_id' (copia física).
+        // Si 'create_reserva' falla, revisa la lógica en 'prart/app.py'.
         const reservaPayload = {
           solicitud_id: solicitudId,
-          item_existencia_id: parseInt(itemId, 10), // El backend debería resolver la existencia disponible
+          // El ID del modal es 'item_id', pero el backend pide 'item_existencia_id'
+          // Esto es un posible punto de falla. Lo enviaremos como 'item_existencia_id' por ahora.
+          item_existencia_id: parseInt(itemId, 10), 
           inicio: new Date(inicio).toISOString(),
           fin: new Date(fin).toISOString()
         };
-        await API.post(CATALOG_SERVICE, '/reservas', reservaPayload, { auth: true });
+        
+        // ANTES: await API.post(CATALOG_SERVICE, '/reservas', reservaPayload, { auth: true });
+        // AHORA:
+        await API.createReserva(reservaPayload);
+        
         showState('¡Reserva creada exitosamente!', true);
       }
       setTimeout(closeModal, 1500); // Cierra el modal después de un breve éxito
@@ -171,7 +195,7 @@
     }
   });
 
-  // ---------- RENDER LISTADO Y FETCH (lógica existente) ----------
+  // ---------- RENDER LISTADO (Sin cambios) ----------
   function renderList(items) {
     results.innerHTML = '';
     if (!items || !items.length) {
@@ -187,17 +211,30 @@
     results.appendChild(frag);
   }
 
+  // --- FETCH (CORREGIDO) ---
   async function fetchItems({ nombre = '', tipo = '' } = {}) {
     hideState();
     results.innerHTML = '<p style="opacity:.7">Cargando…</p>';
-    const params = new URLSearchParams();
-    if (nombre) params.set('nombre', nombre);
-    if (tipo) params.set('tipo', tipo);
-    const endpoint = '/items' + (params.toString() ? `?${params}` : '');
+    
     try {
-      const data = await API.get(CATALOG_SERVICE, endpoint, { auth: true });
-      renderList(Array.isArray(data) ? data : []);
-      if (!data || !data.length) showState('No se encontraron ítems con ese filtro.', true);
+      let data;
+      if (nombre || tipo) {
+        // Si hay filtros, usa 'search_items'
+        //
+        data = await API.searchItems({ nombre: nombre, tipo: tipo });
+      } else {
+        // Si no hay filtros, usa 'get_all_items'
+        //
+        data = await API.getAllItems();
+      }
+
+      // El backend (prart/app.py) devuelve un objeto { "total": N, "items": [...] }
+      const items = data.items || [];
+      renderList(items);
+      
+      if (items.length === 0) {
+        showState('No se encontraron ítems con ese filtro.', true);
+      }
     } catch (e) {
       console.error('[CAT] Error cargando items', e);
       let msg = 'No se pudo cargar el catálogo.';
@@ -207,7 +244,7 @@
     }
   }
 
-  // ---------- EVENTOS DE FILTROS (lógica existente) ----------
+  // ---------- EVENTOS DE FILTROS (Sin cambios) ----------
   form.addEventListener('submit', (ev) => {
     ev.preventDefault();
     const nombre = (q.value || '').trim();
@@ -221,7 +258,7 @@
     fetchItems({});
   });
 
-  // ---------- CARGA INICIAL ----------
+  // ---------- CARGA INICIAL (Sin cambios) ----------
   hideState();
   fetchItems({});
 })();

@@ -1,14 +1,13 @@
-// mis-multas.js — Listar multas del usuario (MULTA) con fallback para obtener usuario_id
+// mis-multas.js — (CORREGIDO PARA NUEVA API)
 (function () {
   const S = window.PRESTALAB?.SERVICES || {};
   const FINES = S.FINES || 'multa';     // alias del servicio de multas
-  const AUTH  = S.AUTH  || 'regist';    // para resolver id por correo si falta
-
+  
   const wrap  = document.getElementById('multasWrap'); // contenedor de tarjetas/listado
   const state = document.getElementById('state');      // banner de estado
   const btn   = document.getElementById('btnReload');  // botón "Actualizar" 
 
-  // ---------- UI ----------
+  // ---------- UI (Sin cambios) ----------
   function banner(msg, ok=false, extra=null) {
     state.innerHTML = '';
     const p = document.createElement('div');
@@ -34,41 +33,23 @@
   function clearBanner(){ state.style.display = 'none'; }
   function loading(on=true){ wrap.innerHTML = on ? '<p style="opacity:.7">Cargando…</p>' : ''; }
 
-  // ---------- helpers ----------
-  async function resolveUserId() {
-    // 1) intenta desde localStorage 
-    const raw = localStorage.getItem('pl_user_id');
-    if (raw && /^\d+$/.test(raw)) return Number(raw);
-
-    // 2) si no está, intenta resolver con REGIST por correo
-    const correo = window.Auth?.getEmail?.();
-    if (!correo) return null;
-
-    try {
-      const r = await API.get(AUTH, `/usuarios?correo=${encodeURIComponent(correo)}`, { auth: true });
-      const body = (r && typeof r === 'object' && 'data' in r) ? r.data : r;
-      // puede venir como array o como objeto
-      const id = Array.isArray(body) ? body[0]?.id : body?.id;
-      if (id) {
-        try { localStorage.setItem('pl_user_id', String(id)); } catch {}
-        return Number(id);
-      }
-    } catch (_) { /* silencioso */ }
-
-    return null;
-  }
+  // ---------- helpers (CORREGIDO) ----------
+  
+  // --- ELIMINADA LA FUNCIÓN `resolveUserId` ---
+  // Ya no es necesaria. `window.Auth.getUserId()` es suficiente.
 
   function normalizeMultas(resp) {
-    // posibles formatos:
-  
-    const body = (resp && typeof resp === 'object' && 'data' in resp) ? resp.data : resp;
-    if (Array.isArray(body)) return body;
+    // El servicio multa/app.py devuelve { "multas": [...] }
+    //
+    const body = (resp && typeof resp === 'object') ? resp : {};
+    
     if (Array.isArray(body?.multas)) return body.multas;
-    if (Array.isArray(body?.data)) return body.data;
+    if (Array.isArray(body?.data)) return body.data; // Fallback
+    if (Array.isArray(body)) return body; // Fallback
     return [];
   }
 
-  // ---------- render ----------
+  // ---------- render (Sin cambios) ----------
   function render(list) {
     wrap.innerHTML = '';
     const items = Array.isArray(list) ? list : [];
@@ -92,7 +73,7 @@
         <h3 class="sol-title">Multa</h3>
         <p class="sol-item"><strong>Motivo:</strong> ${m.motivo ?? '—'}</p>
         <p class="sol-item"><strong>Monto:</strong> ${m.valor != null ? `$${m.valor}` : '—'}</p>
-        <p class="sol-date"><strong>Fecha:</strong> ${m.registro_instante ?? '—'}</p>
+        <p class="sol-date"><strong>Fecha:</strong> ${new Date(m.registro_instante).toLocaleString() ?? '—'}</p>
       `;
       grid.appendChild(card);
     });
@@ -100,38 +81,50 @@
     wrap.appendChild(grid);
   }
 
-  // ---------- flujo principal ----------
+  // ---------- flujo principal (CORREGIDO) ----------
   async function cargarMultas() {
     clearBanner();
     loading(true);
 
     // debe haber sesión
     window.Auth?.requireAuth?.();
-    const correo = window.Auth?.getEmail?.();
-    if (!correo) {
-      loading(false);
-      return err('No hay sesión activa.');
-    }
-
-    const uid = await resolveUserId();
+    
+    // Obtenemos el ID de usuario directamente de auth.js
+    const uid = window.Auth?.getUserId?.();
+    
     if (!uid) {
       loading(false);
-      return err('No se pudo obtener tu ID automáticamente. Entra primero a Dashboard o contacta al admin.', { detalle: 'sin_usuario_id' });
+      // Si no hay ID, es porque el login (auth.js) falló en guardarlo.
+      return err('No se pudo obtener tu ID de usuario. Por favor, inicia sesión de nuevo.', { detalle: 'sin_usuario_id' });
     }
 
     try {
-      const resp = await API.get(FINES, `/usuarios/${uid}/multas`, { auth: true });
+      // --- ESTE ES EL CAMBIO ---
+      // ANTES:
+      // const resp = await API.get(FINES, `/usuarios/${uid}/multas`, { auth: true });
+      
+      // AHORA:
+      const payload = { usuario_id: uid };
+      const resp = await API.getMultasUsuario(payload); // Llama a la nueva API
+      // --- FIN DEL CAMBIO ---
+
       const multas = normalizeMultas(resp);
       render(multas);
-      ok(`Multas cargadas (${multas.length})`);
+      
+      if (multas.length > 0) {
+        ok(`Multas cargadas (${multas.length})`);
+      } else {
+        clearBanner(); // No mostrar banner si solo dice "0 cargadas"
+      }
+      
     } catch (e) {
-      err('No se pudieron obtener tus multas.', { status: e?.status ?? null, raw: e?.payload ?? e });
+      err('No se pudieron obtener tus multas.', { status: e?.status ?? null, raw: e?.payload ?? e.message });
     } finally {
       loading(false);
     }
   }
 
-  // ---------- init ----------
+  // ---------- init (Sin cambios) ----------
   document.getElementById('userBadge').textContent =
     window.Auth?.getUser?.()?.correo || 'Usuario';
 

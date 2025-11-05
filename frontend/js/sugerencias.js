@@ -1,4 +1,4 @@
-// sugerencias.js — VERSIÓN FINAL CORREGIDA
+// sugerencias.js — VERSIÓN FINAL CORREGIDA Y LIMPIA
 (function () {
   const S = window.PRESTALAB?.SERVICES || {};
   const SUG = S.SUGGESTIONS || S.SUGGEST || "sugit";
@@ -32,7 +32,7 @@
   let MINE = [];
   const MAX_LEN = 800;
   
-  // ===== CORRECCIÓN: Definimos la función updateCount al principio =====
+  // ===== Definimos la función updateCount al principio =====
   function updateCount() {
     if (!count || !inDetalle) return; // Chequeo de seguridad
     const n = (inDetalle.value || '').length;
@@ -54,7 +54,8 @@
   const escapeHtml = (s) => String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'})[m]);
   const badge = (e) => {
     const s = (e||'').toUpperCase();
-    if (s === 'APROBADA') return `<span class="badge b-ok">Aprobada</span>`;
+    // Tu servicio sugit usa "ACEPTADA"
+    if (s === 'APROBADA' || s === 'ACEPTADA') return `<span class="badge b-ok">Aprobada</span>`;
     if (s === 'RECHAZADA') return `<span class="badge b-no">Rechazada</span>`;
     return `<span class="badge b-pend">Pendiente</span>`;
   };
@@ -70,9 +71,14 @@
     return null;
   }
   
-  // ==== Normalizadores y Filtros ====
+  // ==== Normalizadores y Filtros (CORREGIDO) ====
   function normList(resp) {
-    const arr = Array.isArray(resp) ? resp : (Array.isArray(resp?.data) ? resp.data : []);
+    // El servicio sugit/app.py devuelve { "total": N, "sugerencias": [...] }
+    //
+    const arr = Array.isArray(resp?.sugerencias) ? resp.sugerencias 
+              : (Array.isArray(resp?.data) ? resp.data 
+              : (Array.isArray(resp) ? resp : []));
+
     return arr.map(r => ({
       id: r.id,
       detalle: r.sugerencia || '',
@@ -92,18 +98,21 @@
     return list.filter(x => String(x.usuario_id) === String(myUid));
   }
 
-  // ==== API Calls ====
-  const fetchAll = () => API.get(SUG, '/sugerencias', { auth: true });
-  const putAprobar = (id) => API.put(SUG, `/sugerencias/${id}/aprobar`, {}, { auth: true });
-  const putRechazar = (id) => API.put(SUG, `/sugerencias/${id}/rechazar`, {}, { auth: true });
+  // ==== API Calls (Estaban correctas) ====
+  const fetchAll = () => API.listarSugerencias();
+  const putAprobar = (id) => API.aprobarSugerencia({ id: Number(id) });
+  const putRechazar = (id) => API.rechazarSugerencia({ id: Number(id) });
   async function postSuggestion(titulo, detalle) {
     const uid = getMyId();
     if (!uid) throw new Error("ID de usuario no encontrado. Por favor, inicia sesión de nuevo.");
-    const payload = { usuario_id: Number(uid), sugerencia: `${titulo}: ${detalle}` };
-    return await API.post(SUG, '/sugerencias', payload, { auth: true });
+    const payload = { 
+        usuario_id: Number(uid), 
+        sugerencia: `${titulo}: ${detalle}` 
+    };
+    return await API.registrarSugerencia(payload);
   }
 
-  // ==== Renderizado ====
+  // ==== Renderizado (Sin cambios) ====
   function renderMine() {
     const q = mySearch.value.toLowerCase().trim();
     const f = myStatus.value.toUpperCase().trim();
@@ -139,7 +148,7 @@
     }).join('') || `<tr><td colspan="6" style="padding:1rem; text-align:center; opacity:0.7;">No hay sugerencias para mostrar.</td></tr>`;
   }
   
-  // ==== Event Handlers ====
+  // ==== Event Handlers (Sin cambios) ====
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const titulo = inTitulo.value.trim();
@@ -184,7 +193,7 @@
     try {
       if (action === 'aprobar') await putAprobar(id); else await putRechazar(id);
       const item = ALL.find(s => String(s.id) === id);
-      if (item) item.estado = action === 'aprobar' ? 'APROBADA' : 'RECHAZADA';
+      if (item) item.estado = action === 'aprobar' ? 'ACEPTADA' : 'RECHAZADA';
       renderAdmin();
       show(`Sugerencia #${id} actualizada.`, true);
     } catch (e) {
@@ -202,7 +211,7 @@
     myTable.innerHTML = `<tr><td colspan="5" style="padding:1rem; text-align:center; opacity:0.7;">Actualizando...</td></tr>`;
     try {
       const data = await fetchAll();
-      ALL = normList(data);
+      ALL = normList(data); // Usa la función corregida
       MINE = meFilter(ALL);
       renderMine();
       if (tabAdminBtn.style.display !== 'none') renderAdmin();
@@ -212,11 +221,16 @@
     }
   }
 
+  // Esta es la única función init() que debe existir
   (async function init() {
     window.Auth?.requireAuth?.();
     const u = window.Auth?.getUser?.();
+    
+    // Configura el badge de usuario y el botón de logout
     if(u) document.getElementById('userBadge').textContent = u.correo;
+    document.getElementById('btnLogout')?.addEventListener('click', () => window.Auth.logout());
 
+    // Muestra el botón de admin si el email coincide
     if ((window.PRESTALAB?.ADMIN_EMAILS || []).includes(u?.correo)) {
         tabAdminBtn.style.display = 'block';
     }
@@ -225,35 +239,6 @@
     await loadData();
   })();
 
-  
-  // ---------- init ----------
-  window.Auth?.requireAuth?.();
-  const user = window.Auth?.getUser?.();
-  document.getElementById("userBadge").textContent = user?.correo || "Usuario";
-  document.getElementById("btnLogout").addEventListener("click", () => window.Auth.logout());
-  cargarPrestamos();
-
-  // ---------- init ----------
-  window.Auth?.requireAuth?.();
-  const user = window.Auth?.getUser?.();
-  document.getElementById("userBadge").textContent = user?.correo || "Usuario";
-  document.getElementById("btnLogout").addEventListener("click", () => window.Auth.logout());
-  cargarPrestamos();
-
- if (await isAdmin()) {
-  tabAdminBtn.style.display = 'inline-block';
-  // AÑADE ESTO:
-  const nav = document.getElementById('main-nav'); // Asegúrate que el div tenga id="main-nav"
-  if (nav) {
-    nav.innerHTML = `
-      <span class="brand">PrestaLab</span>
-      <a href="dashboard.html" class="nav-link">Dashboard</a>
-      <a href="admin.html" class="nav-link">Administración</a>
-      <a href="reportes.html" class="nav-link">Reportes</a>
-      <a href="sugerencias.html" class="nav-link active">Sugerencias</a>
-    `;
-  }
-}
+  // --- TODO EL CÓDIGO BASURA QUE ESTABA AQUÍ FUE ELIMINADO ---
 
 })();
-

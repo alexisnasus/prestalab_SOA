@@ -1,4 +1,4 @@
-// signup.js — Alta de usuario vía Bus (servicio: regist)
+// signup.js — Alta de usuario vía Bus (servicio: regist) (CORREGIDO)
 (function () {
   const qs = (s) => document.querySelector(s);
   const form = qs('#signupForm');
@@ -49,9 +49,8 @@
       return;
     }
 
-    // IMPORTANTE: el servicio espera TODOS estos campos en el INSERT
-    // - id: NULL para que MySQL auto-incremente
-    // - telefono: NOT NULL → usa '' si viene vacío
+    // El payload ya es correcto para el servicio 'regist'
+    //
     const payload = {
       nombre: name,
       correo: mail,
@@ -64,8 +63,15 @@
 
     try {
       setLoading(true);
-      const S = window.PRESTALAB?.SERVICES || {};
-      const created = await window.API.post(S.AUTH, "/usuarios", payload, { auth: false });
+      
+      // --- ESTE ES EL CAMBIO ---
+      // ANTES:
+      // const S = window.PRESTALAB?.SERVICES || {};
+      // const created = await window.API.post(S.AUTH, "/usuarios", payload, { auth: false });
+      
+      // AHORA (Usamos la función específica del nuevo api.js):
+      const created = await window.API.register(payload);
+      // --- FIN DEL CAMBIO ---
 
       const newId = created?.user?.id ?? created?.id ?? null;
       if (newId) {
@@ -77,9 +83,14 @@
     } catch (e) {
       console.error('[SIGNUP] Error', e);
       let msg = 'No se pudo crear la cuenta.';
-      if (e.status === 409) msg = 'Ese correo ya está registrado.';
-      else if (e.payload && (e.payload.detail || e.payload.message || e.payload.error)) {
+      
+      // El manejo de errores sigue siendo válido
+      if (e.status === 409 || e.message.includes("El correo ya está registrado")) {
+           msg = 'Ese correo ya está registrado.';
+      } else if (e.payload && (e.payload.detail || e.payload.message || e.payload.error)) {
         msg = e.payload.detail || e.payload.message || e.payload.error;
+      } else {
+        msg = e.message; // Muestra el error que vino del gateway/servicio
       }
       showErr(msg);
     } finally {

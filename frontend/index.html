@@ -41,7 +41,6 @@
     </section>
   </main>
 
-  <!-- Config + módulos -->
   <script src="js/config.js"></script>
   <script src="js/api.js"></script>
   <script src="js/auth.js"></script>
@@ -52,14 +51,19 @@
       const el = document.getElementById('status');
       try {
         const cfg = window.PRESTALAB || {};
-        if (cfg.BUS_BASE_URL && typeof cfg.BUS_BASE_URL === 'string') {
-          el.textContent = 'OK · BUS_BASE_URL = ' + cfg.BUS_BASE_URL;
+        
+        // --- CORRECCIÓN ---
+        // ANTES: if (cfg.BUS_BASE_URL && typeof cfg.BUS_BASE_URL === 'string') {
+        // AHORA:
+        if (cfg.GATEWAY_URL && typeof cfg.GATEWAY_URL === 'string') {
+          el.textContent = 'OK · Gateway = ' + cfg.GATEWAY_URL; // Mensaje actualizado
           el.classList.add('ok');
           console.log('[BOOT] Config OK:', cfg);
         } else {
-          el.textContent = 'ERROR · No se encontró window.PRESTALAB.BUS_BASE_URL';
+          // Este es el error que estabas viendo
+          el.textContent = 'ERROR · No se encontró window.PRESTALAB.GATEWAY_URL'; // Mensaje actualizado
           el.classList.add('error');
-          console.error('[BOOT] Config inválida. Define window.PRESTALAB.BUS_BASE_URL en js/config.js');
+          console.error('[BOOT] Config inválida. Define window.PRESTALAB.GATEWAY_URL en js/config.js'); 
         }
       } catch (e) {
         el.textContent = 'ERROR · No se pudo leer la configuración';

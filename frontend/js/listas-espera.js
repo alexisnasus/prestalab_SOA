@@ -1,4 +1,4 @@
-// listas-espera.js — Catálogo completo + filtro + contador + presencia robusta + salir
+// listas-espera.js — (CORREGIDO PARA NUEVA API)
 (function () {
   const S        = window.PRESTALAB?.SERVICES || {};
   const LIST     = S.WAITLIST || S.lista;   // servicio lista de espera
@@ -16,7 +16,7 @@
   let PAGE_SIZE = 24;
   let page = 1;
 
-  // -------- storage: recordamos solicitud_id por item ----------
+  // -------- storage: recordamos solicitud_id por item (Sin cambios) ----------
   const userEmail = () => (window.Auth?.getEmail?.() || "").toLowerCase();
   const userId    = () => window.Auth?.getUserId?.() || localStorage.getItem('pl_user_id') || null;
   const LS_KEY    = () => `pl_wait_solicitudes:${userEmail()}`;
@@ -33,7 +33,7 @@
     const map = getWaitMap(); delete map[item_id]; setWaitMap(map);
   }
 
-  // ---------- Helpers UI ----------
+  // ---------- Helpers UI (Sin cambios) ----------
   const show = (msg, ok=false) => {
     elState.textContent = msg;
     elState.style.display     = "block";
@@ -53,8 +53,9 @@
     String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
              .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 
-  // ---------- Normalizador ----------
+  // ---------- Normalizador (Sin cambios) ----------
   function normalizeCatalog(resp) {
+    // prart/app.py devuelve { "items": [...] }
     const arr = Array.isArray(resp) ? resp
              : Array.isArray(resp?.items) ? resp.items
              : Array.isArray(resp?.data) ? resp.data
@@ -69,33 +70,20 @@
     })).filter(x => x.id);
   }
 
-  // ---------- API: traerse TODO el catálogo ----------
+  // ---------- API: traerse TODO el catálogo (CORREGIDO) ----------
   async function fetchAllCatalog() {
-    const tryPaths = ['/items?limit=1000','/items?limit=500','/items'];
-    for (const path of tryPaths) {
-      try {
-        const res  = await API.get(CATALOG, path, { auth: true });
-        let list   = normalizeCatalog(res);
-
-        // paginación si existe
-        let next = res?.next || res?.next_page || res?.links?.next;
-        let offset = res?.next_offset || null;
-        let guard = 0;
-        while ((next || offset) && guard < 10) {
-          guard++;
-          try {
-            const more = next
-              ? await API.get(CATALOG, next, { auth: true })
-              : await API.get(CATALOG, `/items?offset=${offset}`, { auth: true });
-            list = list.concat(normalizeCatalog(more));
-            next = more?.next || more?.next_page || more?.links?.next;
-            offset = more?.next_offset || null;
-          } catch { break; }
-        }
-        if (list.length) return uniqueBy(list, x => x.id);
-      } catch (_) {}
+    try {
+      // ANTES: Múltiples llamadas con API.get y paths manuales
+      // AHORA:
+      const res = await API.getAllItems(); // Llama a la nueva función
+      
+      let list = normalizeCatalog(res);
+      if (list.length) return uniqueBy(list, x => x.id);
+      
+    } catch (e) {
+      console.error("Error al cargar el catálogo:", e);
     }
-    return [];
+    return []; // Devuelve vacío si falla
   }
 
   function uniqueBy(arr, key) {
@@ -104,7 +92,7 @@
     return out;
   }
 
-  // ---------- Crear solicitud + unirse ----------
+  // ---------- Crear solicitud + unirse (CORREGIDO) ----------
   async function crearSolicitud(tipo = 'VENTANA') {
     const correo = userEmail();
     if (!correo) throw new Error('No hay sesión activa.');
@@ -112,16 +100,21 @@
     const body = { tipo, correo };
     if (uid && /^\d+$/.test(String(uid))) body.usuario_id = Number(uid);
 
-    const res = await API.post(CATALOG, '/solicitudes', body, { auth: true });
+    // ANTES: const res = await API.post(CATALOG, '/solicitudes', body, { auth: true });
+    // AHORA:
+    const res = await API.createSolicitud(body);
+    
+    // El servicio prart/app.py devuelve { "solicitud_id": ... }
     const solicitud_id = res?.solicitud_id ?? res?.id ?? res?.data?.solicitud_id;
     if (!solicitud_id) throw new Error('No se obtuvo solicitud_id al crear la solicitud.');
     return solicitud_id;
   }
 
-  // ---------- Detección de presencia en cola ----------
+  // ---------- Detección de presencia en cola (CORREGIDO) ----------
   function arrayFirst(arrLike) {
     if (Array.isArray(arrLike)) return arrLike;
     if (arrLike && typeof arrLike === 'object') {
+      // El servicio lista/app.py devuelve { "registros": [...] }
       for (const k of ['registros','lista','data','items']) {
         if (Array.isArray(arrLike[k])) return arrLike[k];
       }
@@ -129,7 +122,7 @@
     return [];
   }
 
-  function extractUserFields(r) {
+  function extractUserFields(r) { // (Sin cambios)
     const lower = (s) => (s || '').toString().toLowerCase();
     return {
       regId: r?.id ?? r?.registro_id ?? r?.lista_id ?? null,
@@ -139,7 +132,7 @@
     };
   }
 
-  function isMe(rFields, rememberedSolicitudId) {
+  function isMe(rFields, rememberedSolicitudId) { // (Sin cambios)
     const myEmail = userEmail();
     const myUid   = userId();
     if (rememberedSolicitudId && String(rFields.solicitudId) === String(rememberedSolicitudId)) return true;
@@ -153,8 +146,12 @@
     const remembered = map[String(item_id)] || null;
 
     try {
-      const det = await API.get(LIST, `/lista-espera/${item_id}`, { auth: true });
-      const registros = arrayFirst(det);
+      // ANTES: const det = await API.get(LIST, `/lista-espera/${item_id}`, { auth: true });
+      // AHORA:
+      const payload = { item_id: Number(item_id) };
+      const det = await API.getListaEspera(payload); // Llama a la nueva API
+      
+      const registros = arrayFirst(det); // Esto buscará det.registros
       const count = registros.length;
 
       let myPos = null, myRegId = null, mySolicitudId = null;
@@ -168,23 +165,24 @@
         }
       }
 
-      // si detectamos presencia pero no estaba recordada, sincroniza
+      // (Lógica de sync sin cambios)
       if (!remembered && mySolicitudId) rememberJoin(String(item_id), String(mySolicitudId));
-      // si estaba recordado pero ya no aparece en la cola, limpia
       if (remembered && myPos === null) forgetJoin(String(item_id));
 
       return { count, myPos, myRegId };
-    } catch {
-      return { count: null, myPos: null, myRegId: null };
+    } catch (e) {
+      // Si la API falla (ej. 404 porque no hay lista), devuelve nulo
+      // El servicio 'lista' devuelve error si no hay registros
+      return { count: 0, myPos: null, myRegId: null };
     }
   }
 
-  // ---------- Unirse / Salir ----------
+  // ---------- Unirse / Salir (CORREGIDO) ----------
   async function unirmeALista(item_id, cardEl) {
     clearMsg();
     if (!item_id || !/^\d+$/.test(String(item_id))) { show("Ítem inválido (falta id).", false); return; }
 
-    // PRE-CHEQUEO: si ya estás en la cola, solo muestra estado
+    // PRE-CHEQUEO (Sin cambios)
     const pre = await getQueueInfo(item_id);
     if (pre.myRegId) {
       await enrichCardQueue(cardEl, item_id);
@@ -194,14 +192,20 @@
 
     try {
       cardEl?.querySelector('button[data-join]')?.setAttribute('disabled', 'disabled');
-      const solicitud_id = await crearSolicitud('VENTANA');
+      // 1. Crear solicitud (ya está corregida)
+      const solicitud_id = await crearSolicitud('VENTANA'); 
 
-      await API.post(LIST, '/lista-espera', {
-        solicitud_id,
+      // 2. Unirse a la lista
+      const payload = {
+        solicitud_id: solicitud_id,
         item_id: Number(item_id),
         estado: 'EN ESPERA'
-      }, { auth: true });
-
+      };
+      
+      // ANTES: await API.post(LIST, '/lista-espera', payload, { auth: true });
+      // AHORA:
+      await API.createListaEspera(payload); // Llama a la nueva API
+      
       rememberJoin(String(item_id), String(solicitud_id));
 
       // refrescar contador/estado de la card
@@ -219,7 +223,16 @@
     clearMsg();
     try {
       cardEl?.querySelector('[data-leave]')?.setAttribute('disabled', 'disabled');
-      await API.delete(LIST, `/lista-espera/${registro_id}`, { auth: true });
+      
+      // ANTES: await API.delete(LIST, `/lista-espera/${registro_id}`, { auth: true });
+      // AHORA:
+      // El servicio 'lista' usa 'update' con estado 'CANCELADA'
+      const payload = {
+        id: Number(registro_id),
+        estado: 'CANCELADA'
+      };
+      await API.updateListaEspera(payload); // Llama a la nueva API
+
       forgetJoin(String(item_id));
       await enrichCardQueue(cardEl, item_id);
       show('Saliste de la lista de espera.', true);
@@ -231,7 +244,7 @@
     }
   }
 
-  // ---------- Render ----------
+  // ---------- Render (Sin cambios) ----------
   function render() {
     const term = (elSearch.value || '').trim().toLowerCase();
     const filtered = term
@@ -306,7 +319,7 @@
     hydrateVisibleQueues();
   }
 
-  // Concurrencia limitada para llamadas /lista-espera/{item}
+  // Concurrencia limitada (Sin cambios)
   async function hydrateVisibleQueues(concurrency = 6) {
     const cards = Array.from(elList.querySelectorAll('.sol-card'));
     let i = 0;
@@ -321,6 +334,7 @@
     await Promise.all(workers);
   }
 
+  // enrichCardQueue (Sin cambios)
   async function enrichCardQueue(cardEl, item_id) {
     const qCountEl = cardEl.querySelector('[data-qcount]');
     const qYouEl   = cardEl.querySelector('[data-qyou]');
@@ -346,13 +360,13 @@
     }
   }
 
-  // ---------- Flujo inicial ----------
+  // ---------- Flujo inicial (CORREGIDO) ----------
   async function boot() {
     window.Auth?.requireAuth?.();
     clearMsg();
     setLoading(true);
     try {
-      ALL_ITEMS = await fetchAllCatalog();
+      ALL_ITEMS = await fetchAllCatalog(); // Esta función ya está corregida
       page = 1;
       render();
     } catch (e) {
@@ -362,12 +376,12 @@
     }
   }
 
-  // ---------- Eventos ----------
+  // ---------- Eventos (Sin cambios) ----------
   elSearch.addEventListener('input', () => { page = 1; render(); });
   btnRef?.addEventListener('click', (e) => { e.preventDefault(); boot(); });
   btnAll?.addEventListener('click', (e) => { e.preventDefault(); elSearch.value=""; page=1; render(); });
 
-  // delegación: unirse / salir
+  // delegación: unirse / salir (Sin cambios)
   elList.addEventListener('click', async (ev) => {
     const join = ev.target.closest('[data-join]');
     if (join) {
@@ -375,7 +389,7 @@
       const item_id = join.getAttribute('data-join');
       const card = join.closest('.sol-card');
       if (confirm('¿Quieres unirte a la lista de espera de este ítem?')) {
-        await unirmeALista(item_id, card);
+        await unirmeALista(item_id, card); // Esta función ya está corregida
       }
       return;
     }
@@ -386,7 +400,7 @@
       const itemId = leave.getAttribute('data-item');
       const card = leave.closest('.sol-card');
       if (confirm('¿Seguro que quieres salir de la lista?')) {
-        await salirDeLista(regId, itemId, card);
+        await salirDeLista(regId, itemId, card); // Esta función ya está corregida
       }
     }
   });
@@ -394,13 +408,17 @@
   // go!
   boot();
 
-
   
-  // ---------- init ----------
-  window.Auth?.requireAuth?.();
-  const user = window.Auth?.getUser?.();
-  document.getElementById("userBadge").textContent = user?.correo || "Usuario";
-  document.getElementById("btnLogout").addEventListener("click", () => window.Auth.logout());
-  cargarPrestamos();
-})();
+  // ---------- init (LIMPIO Y CORRECTO) ----------
+  // Este bloque estaba duplicado y con errores.
+  // Lo limpiamos para que solo haga lo necesario.
+  (function init() {
+    window.Auth?.requireAuth?.();
+    const user = window.Auth?.getUser?.();
+    document.getElementById("userBadge").textContent = user?.correo || "Usuario";
+    document.getElementById("btnLogout").addEventListener("click", () => window.Auth.logout());
+  })();
 
+  // --- FIN DEL CÓDIGO BASURA QUE ESTABA AQUÍ ---
+  
+})();
