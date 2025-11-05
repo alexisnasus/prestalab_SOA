@@ -1,4 +1,4 @@
-# gateway.py (CORREGIDO)
+# gateway.py (CORREGIDO v2)
 # Este script es el "Traductor" de HTTP (Frontend) a TCP (Bus SOA)
 
 import socket
@@ -41,30 +41,38 @@ def format_tcp_request(service: str, operation: str, payload: dict) -> bytes:
     return formatted_message.encode('utf-8')
 
 def parse_tcp_response(response: bytes) -> dict:
+    """
+    Parsea la respuesta NNNNNSSSSSSTDATOS.
+    """
     response_str = response.decode('utf-8')
     print(f"[Gateway] Respuesta TCP <-: {response_str!r}")
     
     service_name = response_str[5:10].strip()
     status = response_str[10:12] # "OK" o "NK"
-    data_json = response_str[12:]
+    data_json = response_str[12:] # ej: 'OK{"message":...}'
     
+    # --- INICIO DE LA CORRECCIÓN ---
+    # El bus parece estar duplicando el status (ej: 'OKOK{...}')
+    # Si el data_json (lo que queda) empieza con el status, lo quitamos.
+    if data_json.startswith(status):
+        print(f"[Gateway] Detectado status duplicado ('{status}'). Removiendo...")
+        data_json = data_json[len(status):] # Quita el 'OK' extra del principio
+    # --- FIN DE LA CORRECCIÓN ---
+
     try:
+        # Ahora data_json debería ser '{"message":...}'
         parsed_data = json.loads(data_json)
     except json.JSONDecodeError:
         parsed_data = {"error": "Respuesta inválida del servicio (no es JSON)", "raw": data_json}
         
-    # --- INICIO DE LA CORRECCIÓN ---
     if status != "OK":
-        # Definimos error_message ANTES de usarla
         error_message = f"Error del servicio '{service_name}': "
         if isinstance(parsed_data, dict) and parsed_data.get('error'):
             error_message += parsed_data['error']
         else:
             error_message += data_json
         
-        # Lanzamos la excepción con el mensaje de error correcto
         raise HTTPException(status_code=502, detail=error_message) # 502 Bad Gateway
-    # --- FIN DE LA CORRECCIÓN ---
             
     return parsed_data
 
@@ -105,7 +113,6 @@ async def proxy_route(request: BusRequest):
     except socket.timeout:
         raise HTTPException(status_code=504, detail="Timeout: El Bus SOA o el servicio tardaron demasiado en responder.")
     except Exception as e:
-        # Esto ahora capturará el HTTPException 502 de parse_tcp_response
         if isinstance(e, HTTPException):
             raise e
         raise HTTPException(status_code=500, detail=f"Error interno del Gateway: {str(e)}")

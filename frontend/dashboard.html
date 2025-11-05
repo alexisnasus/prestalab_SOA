@@ -7,7 +7,6 @@
   <link rel="stylesheet" href="assets/css/styles.css" />
 </head>
 <body>
-  <!-- NAVBAR -->
   <header class="nav">
     <div class="nav-left">
       <span class="brand">PrestaLab</span>
@@ -39,7 +38,6 @@
   <script src="js/config.js"></script>
 <script src="js/api.js"></script>
 <script src="js/auth.js"></script>
-<script src="js/catalog.js"></script>
 <script>
   (function () {
     Auth.requireAuth();
@@ -48,9 +46,10 @@
       correo ? `Sesión iniciada: ${correo}` : 'Sesión iniciada';
     document.getElementById('userBadge').textContent = correo || 'Usuario';
 
-    // Si dejaste el <p id="myId"> en el HTML, cámbialo por “identificado por correo”
+    // (Tuve que corregir esto también, 'getUserId()' es la función correcta)
     const idEl = document.getElementById('myId');
-    if (idEl) idEl.textContent = `Identificador: ${correo || 'no disponible'}`;
+    const userId = Auth.getUserId();
+    if (idEl) idEl.textContent = `Identificador (ID): ${userId || 'no disponible'}`;
 
     document.getElementById('btnLogout').addEventListener('click', () => Auth.logout());
   })();
