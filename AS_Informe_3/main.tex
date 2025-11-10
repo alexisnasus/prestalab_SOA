@@ -18,6 +18,8 @@
 \usepackage{url}
 \usepackage{karnaugh-map}
 \usepackage{longtable}
+\usepackage{enumitem} % habilita labelwidth/leftmargin/labelsep
+\usepackage{amsmath}  % para \geq
 
 \fancyfoot{}
 \fancyfoot[R]{Página \thepage \hspace{0.02 cm}}
@@ -35,6 +37,7 @@
 \usepackage{tabularx,booktabs,array}
 \newcommand{\NA}{---}
 \newcolumntype{Y}{>{\raggedright\arraybackslash}X} % última columna quebrable y alineada a la izquierda
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}} % columna con ancho fijo y salto de línea
 \setlength{\extrarowheight}{2pt}
 
 %New colors defined below
@@ -166,7 +169,7 @@
     \subsection*{Listado de RF (Entrega 1)}
         \renewcommand{\arraystretch}{1.35}
         \setlength{\tabcolsep}{6pt}
-        \begin{tabular}{|>{\raggedright\arraybackslash}p{1.2cm}|>{\raggedright\arraybackslash}p{3.5cm}|>{\raggedright\arraybackslash}p{9.2cm}|>{\raggedright\arraybackslash}p{2.2cm}|}
+        \begin{tabular}{|p{1.2cm}|p{3.5cm}|p{8cm}|p{2.5cm}|}
         \hline
         \textbf{ID} & \textbf{Nombre} & \textbf{Descripción} & \textbf{Usuario} \\ \hline
         RF01 & Búsqueda y filtros & Buscar ítems por Código identificador, nombre, tipo, ubicación y estado (disponible/prestado), mostrando cuando aplique la fecha estimada de devolución. & Estudiante / Docente \\ \hline
@@ -218,238 +221,158 @@
         Las entidades principales incluyen \texttt{usuario}, \texttt{item}, \texttt{item\_existencia}, \texttt{sede}, \texttt{solicitud}, \texttt{prestamo}, \texttt{multa}, \texttt{lista\_espera}, \texttt{sugerencia}, \texttt{notificacion}, \texttt{ventana}, \texttt{atraso}, \texttt{item\_solicitud} y \texttt{configuracion\_sistema}. Estas tablas gestionan la información de usuarios, el catálogo de materiales, el inventario físico por sede, las solicitudes de préstamo o reserva, los préstamos activos, las penalizaciones (multas y atrasos), las listas de espera, las sugerencias de usuarios, las notificaciones enviadas y los parámetros de configuración del sistema.
 
     \subsection*{Diccionario de datos}
-        A continuación se detalla la estructura completa de las tablas definidas en la base de datos MySQL.
+A continuación se detalla la estructura completa de las tablas definidas en la base de datos MySQL.
 
-        \paragraph{item}
-        \begingroup\footnotesize
-        \begin{tabularx}{\linewidth}{@{}l l c l l Y@{}}
-        \toprule
-        \textbf{Campo} & \textbf{Tipo} & \textbf{Nulo} & \textbf{PK/FK} & \textbf{Índice} & \textbf{Descripción / Dominio}\\
-        \midrule
-        id & BIGINT & No & PK & Sí (PK), auto\_increment, unique & Identificador único del tipo de ítem.\\
-        nombre & VARCHAR(50) & No & \NA & Sí (itemIDX1) & Nombre del material (ej: 'Raspberry Pi 4').\\
-        cantidad & INTEGER & No & \NA &  & Cantidad total referencial en catálogo.\\
-        tipo & VARCHAR(20) & No & \NA & Sí (itemIDX1) & Categoría del ítem (ej: 'EQUIPO\_ELECTRONICO', 'LIBRO').\\
-        valor & DECIMAL(10,2) & No & \NA &  & Valor referencial para cálculo de multas por daño/pérdida (CHECK valor \(\ge\) 0).\\
-        tarifa\_atraso & DECIMAL(10,2) & No & \NA &  & Tarifa diaria por atraso en devolución (CHECK tarifa\_atraso \(\ge\) 0).\\
-        descripcion & VARCHAR(100) & No & \NA &  & Descripción breve del ítem.\\
-        cantidad\_max & INTEGER & No & \NA &  & Cantidad máxima de este tipo de ítem por solicitud/préstamo (CHECK cantidad\_max \(>\) 0).\\
-        registro\_instante & DATETIME & No & \NA &  & Fecha y hora de creación del registro del tipo de ítem.\\
-        \bottomrule
-        \end{tabularx}
-        \endgroup
+\paragraph{item}
+\begin{itemize}[labelsep=0.6cm, labelwidth=3.8cm, leftmargin=!, itemsep=3pt, topsep=2pt]
+  \item[\textbf{id}] BIGINT, PK, \textit{auto\_increment}, \textit{unique}, \textit{not null}. Identificador único del tipo de ítem.
+  \item[\textbf{nombre}] VARCHAR(50), \textit{not null}, \textit{indexed} (\texttt{itemIDX1}). Nombre del material (ej.: “Raspberry Pi 4”).
+  \item[\textbf{cantidad}] INTEGER, \textit{not null}. Cantidad total referencial en catálogo.
+  \item[\textbf{tipo}] VARCHAR(20), \textit{not null}, \textit{indexed} (\texttt{itemIDX1}). Categoría (ej.: \texttt{EQUIPO\_ELECTRONICO}, \texttt{LIBRO}).
+  \item[\textbf{valor}] DECIMAL(10,2), \textit{not null}, \textit{CHECK} (valor $\geq$ 0). Valor referencial para multas por daño/pérdida.
+  \item[\textbf{tarifa\_atraso}] DECIMAL(10,2), \textit{not null}, \textit{CHECK} (tarifa\_atraso $\geq$ 0). Tarifa diaria por atraso.
+  \item[\textbf{descripcion}] VARCHAR(100), \textit{not null}. Descripción breve del ítem.
+  \item[\textbf{cantidad\_max}] INTEGER, \textit{not null}, \textit{CHECK} (cantidad\_max $>$ 0). Máximo por solicitud/préstamo.
+  \item[\textbf{registro\_instante}] DATETIME, \textit{not null}. Fecha y hora de creación del registro.
+\end{itemize}
 
-        \paragraph{sede}
-        \begingroup\footnotesize
-        \begin{tabularx}{\linewidth}{@{}l l c l l Y@{}}
-        \toprule
-        \textbf{Campo} & \textbf{Tipo} & \textbf{Nulo} & \textbf{PK/FK} & \textbf{Índice} & \textbf{Descripción / Dominio}\\
-        \midrule
-        id & BIGINT & No & PK & Sí (PK), auto\_increment, unique & Identificador único de la sede o ubicación física.\\
-        nombre & VARCHAR(50) & No & \NA &  & Nombre de la sede (ej: 'FIC\_LABORATORIO\_01').\\
-        \bottomrule
-        \end{tabularx}
-        \endgroup
+\paragraph{sede}
+\begin{itemize}[labelsep=0.6cm, labelwidth=3.8cm, leftmargin=!, itemsep=3pt, topsep=2pt]
+  \item[\textbf{id}] BIGINT, PK, \textit{auto\_increment}, \textit{unique}, \textit{not null}. Identificador único de sede.
+  \item[\textbf{nombre}] VARCHAR(50), \textit{not null}. Nombre de la sede (ej.: \texttt{FIC\_LABORATORIO\_01}).
+\end{itemize}
 
-        \paragraph{item\_existencia}
-        \begingroup\footnotesize
-        \begin{tabularx}{\linewidth}{@{}l l c l l Y@{}}
-        \toprule
-        \textbf{Campo} & \textbf{Tipo} & \textbf{Nulo} & \textbf{PK/FK} & \textbf{Índice} & \textbf{Descripción / Dominio}\\
-        \midrule
-        id & BIGINT & No & PK & Sí (PK), auto\_increment, unique & Identificador único de una copia física específica de un ítem.\\
-        item\_id & BIGINT & No & FK \(\rightarrow\) \texttt{item.id} & Sí (item\_existenciaIDX1) & Referencia al tipo de ítem al que pertenece esta copia.\\
-        sede\_id & BIGINT & No & FK \(\rightarrow\) \texttt{sede.id} & Sí & Referencia a la sede donde se encuentra físicamente esta copia.\\
-        codigo & VARCHAR(50) & No & \NA & Único & Código único de inventario para esta copia física (ej: '001001001').\\
-        estado & VARCHAR(20) & No & \NA &  & Estado actual de la copia: 'DISPONIBLE', 'PRESTADO', 'MANTENIMIENTO', 'PERDIDO', 'DANNADO', 'ROBADO'.\\
-        registro\_instante & DATETIME & No & \NA &  & Fecha y hora de creación del registro de esta copia.\\
-        \bottomrule
-        \end{tabularx}
-        \endgroup
+\paragraph{item\_existencia}
+\begin{itemize}[labelsep=0.6cm, labelwidth=3.8cm, leftmargin=!, itemsep=3pt, topsep=2pt]
+  \item[\textbf{id}] BIGINT, PK, \textit{auto\_increment}, \textit{unique}, \textit{not null}. Identificador de la copia física.
+  \item[\textbf{item\_id}] BIGINT, FK $\rightarrow$ \texttt{item.id}, \textit{not null}, \textit{indexed} (\texttt{item\_existenciaIDX1}). Tipo de ítem.
+  \item[\textbf{sede\_id}] BIGINT, FK $\rightarrow$ \texttt{sede.id}, \textit{not null}, \textit{indexed}. Sede física.
+  \item[\textbf{codigo}] VARCHAR(50), \textit{unique}, \textit{not null}. Código de inventario (ej.: \texttt{001001001}).
+  \item[\textbf{estado}] VARCHAR(20), \textit{not null}. \texttt{DISPONIBLE | PRESTADO | MANTENIMIENTO | PERDIDO | DANADO | ROBADO}.
+  \item[\textbf{registro\_instante}] DATETIME, \textit{not null}. Fecha y hora de creación.
+\end{itemize}
 
-        \paragraph{usuario}
-        \begingroup\footnotesize
-        \begin{tabularx}{\linewidth}{@{}l l c l l Y@{}}
-        \toprule
-        \textbf{Campo} & \textbf{Tipo} & \textbf{Nulo} & \textbf{PK/FK} & \textbf{Índice} & \textbf{Descripción / Dominio}\\
-        \midrule
-        id & BIGINT & No & PK & Sí (PK), auto\_increment, unique & Identificador único del usuario.\\
-        nombre & VARCHAR(50) & No & \NA & Sí (usuarioIDX1) & Nombre completo del usuario.\\
-        correo & VARCHAR(50) & No & \NA & Único & Dirección de correo electrónico (única).\\
-        tipo & VARCHAR(20) & No & \NA &  & Rol del usuario: 'ENCARGADO', 'ESTUDIANTE', 'DOCENTE'.\\
-        telefono & VARCHAR(15) & Sí & \NA &  & Número de teléfono de contacto (opcional, default '').\\
-        password & VARCHAR(128) & No & \NA &  & Hash de la contraseña del usuario (generado con bcrypt).\\
-        estado & VARCHAR(20) & No & \NA & default 'ACTIVO' & Estado de la cuenta: 'ACTIVO', 'INACTIVO', 'SUSPENDIDO', 'DEUDOR', 'BLOQUEADO'.\\
-        preferencias\_notificacion & INTEGER & No & \NA & default 1 & Preferencias de canal para notificaciones (ej: 1=PORTAL, 2=WHATSAPP, 4=EMAIL, suma para múltiples).\\
-        registro\_instante & DATETIME & No & \NA & default CURRENT\_TIMESTAMP & Fecha y hora de creación de la cuenta.\\
-        \bottomrule
-        \end{tabularx}
-        \endgroup
+\paragraph{usuario}
+\begin{itemize}[labelsep=0.6cm, labelwidth=3.8cm, leftmargin=!, itemsep=3pt, topsep=2pt]
+  \item[\textbf{id}] BIGINT, PK, \textit{auto\_increment}, \textit{unique}, \textit{not null}.
+  \item[\textbf{nombre}] VARCHAR(50), \textit{not null}, \textit{indexed} (\texttt{usuarioIDX1}). Nombre completo.
+  \item[\textbf{correo}] VARCHAR(50), \textit{unique}, \textit{not null}. Email.
+  \item[\textbf{tipo}] VARCHAR(20), \textit{not null}. \texttt{ENCARGADO | ESTUDIANTE | DOCENTE}.
+  \item[\textbf{telefono}] VARCHAR(15), \textit{nullable}, \textit{default} ''.
+  \item[\textbf{password}] VARCHAR(128), \textit{not null}. Hash (p. ej., bcrypt).
+  \item[\textbf{estado}] VARCHAR(20), \textit{not null}, \textit{default} \texttt{ACTIVO}. \texttt{ACTIVO | INACTIVO | SUSPENDIDO | DEUDOR | BLOQUEADO}.
+  \item[\textbf{preferencias\_notificacion}] INTEGER, \textit{not null}, \textit{default} 1. Bits: 1=PORTAL, 2=WHATSAPP, 4=EMAIL (sumables).
+  \item[\textbf{registro\_instante}] DATETIME, \textit{not null}, \textit{default} \texttt{CURRENT\_TIMESTAMP}.
+\end{itemize}
 
-        \paragraph{sugerencia}
-        \begingroup\footnotesize
-        \begin{tabularx}{\linewidth}{@{}l l c l l Y@{}}
-        \toprule
-        \textbf{Campo} & \textbf{Tipo} & \textbf{Nulo} & \textbf{PK/FK} & \textbf{Índice} & \textbf{Descripción / Dominio}\\
-        \midrule
-        id & BIGINT & No & PK & Sí (PK), auto\_increment, unique & Identificador único de la sugerencia.\\
-        usuario\_id & BIGINT & No & FK \(\rightarrow\) \texttt{usuario.id} & Sí & Usuario que realizó la sugerencia.\\
-        sugerencia & VARCHAR(100) & No & \NA &  & Texto de la sugerencia enviada por el usuario.\\
-        estado & VARCHAR(20) & No & \NA & default 'PENDIENTE' & Estado de la sugerencia: 'PENDIENTE', 'ACEPTADA', 'RECHAZADA'.\\
-        registro\_instante & DATETIME & No & \NA & default CURRENT\_TIMESTAMP & Fecha y hora en que se registró la sugerencia.\\
-        \bottomrule
-        \end{tabularx}
-        \endgroup
+\paragraph{sugerencia}
+\begin{itemize}[labelsep=0.6cm, labelwidth=3.8cm, leftmargin=!, itemsep=3pt, topsep=2pt]
+  \item[\textbf{id}] BIGINT, PK, \textit{auto\_increment}, \textit{unique}, \textit{not null}.
+  \item[\textbf{usuario\_id}] BIGINT, FK $\rightarrow$ \texttt{usuario.id}, \textit{not null}, \textit{indexed}.
+  \item[\textbf{sugerencia}] VARCHAR(100), \textit{not null}. Texto de la sugerencia.
+  \item[\textbf{estado}] VARCHAR(20), \textit{not null}, \textit{default} \texttt{PENDIENTE}. \texttt{PENDIENTE | ACEPTADA | RECHAZADA}.
+  \item[\textbf{registro\_instante}] DATETIME, \textit{not null}, \textit{default} \texttt{CURRENT\_TIMESTAMP}.
+\end{itemize}
 
-        \paragraph{notificacion}
-        \begingroup\footnotesize
-        \begin{tabularx}{\linewidth}{@{}l l c l l Y@{}}
-        \toprule
-        \textbf{Campo} & \textbf{Tipo} & \textbf{Nulo} & \textbf{PK/FK} & \textbf{Índice} & \textbf{Descripción / Dominio}\\
-        \midrule
-        id & BIGINT & No & PK & Sí (PK), auto\_increment, unique & Identificador único de la notificación enviada.\\
-        usuario\_id & BIGINT & No & FK \(\rightarrow\) \texttt{usuario.id} & Sí (notificacionIDX1) & Usuario destinatario de la notificación.\\
-        canal & INTEGER & No & \NA &  & Canal por el cual se envió (o se intentó enviar) la notificación (valor numérico asociado a PORTAL, WHATSAPP, EMAIL).\\
-        tipo & VARCHAR(20) & No & \NA &  & Tipo de evento que generó la notificación (ej: 'RECORDATORIO', 'LISTA\_ESPERA', 'ATRASO', etc.).\\
-        mensaje & TEXT & No & \NA &  & Contenido del mensaje enviado.\\
-        registro\_instante & DATETIME & No & \NA & default CURRENT\_TIMESTAMP & Fecha y hora en que se generó la notificación.\\
-        \bottomrule
-        \end{tabularx}
-        \endgroup
+\paragraph{notificacion}
+\begin{itemize}[labelsep=0.6cm, labelwidth=3.8cm, leftmargin=!, itemsep=3pt, topsep=2pt]
+  \item[\textbf{id}] BIGINT, PK, \textit{auto\_increment}, \textit{unique}, \textit{not null}.
+  \item[\textbf{usuario\_id}] BIGINT, FK $\rightarrow$ \texttt{usuario.id}, \textit{not null}, \textit{indexed} (\texttt{notificacionIDX1}).
+  \item[\textbf{canal}] INTEGER, \textit{not null}. Valor numérico (PORTAL/WHATSAPP/EMAIL).
+  \item[\textbf{tipo}] VARCHAR(20), \textit{not null}. Ej.: \texttt{RECORDATORIO | LISTA\_ESPERA | ATRASO}.
+  \item[\textbf{mensaje}] TEXT, \textit{not null}.
+  \item[\textbf{registro\_instante}] DATETIME, \textit{not null}, \textit{default} \texttt{CURRENT\_TIMESTAMP}.
+\end{itemize}
 
-        \paragraph{solicitud}
-        \begingroup\footnotesize
-        \begin{tabularx}{\linewidth}{@{}l l c l l Y@{}}
-        \toprule
-        \textbf{Campo} & \textbf{Tipo} & \textbf{Nulo} & \textbf{PK/FK} & \textbf{Índice} & \textbf{Descripción / Dominio}\\
-        \midrule
-        id & BIGINT & No & PK & Sí (PK), auto\_increment, unique & Identificador único de la solicitud.\\
-        usuario\_id & BIGINT & No & FK \(\rightarrow\) \texttt{usuario.id} & Sí (solicitudIDX1) & Usuario que realizó la solicitud.\\
-        tipo & VARCHAR(30) & No & \NA &  & Tipo de solicitud: 'VENTANA' (reserva), 'PRESTAMO', 'RENOVACION'.\\
-        estado & VARCHAR(20) & No & \NA & default 'PENDIENTE' & Estado de la solicitud: 'PENDIENTE', 'APROBADA', 'RECHAZADA'.\\
-        registro\_instante & DATETIME & No & \NA & default CURRENT\_TIMESTAMP & Fecha y hora en que se creó la solicitud.\\
-        \bottomrule
-        \end{tabularx}
-        \endgroup
+\paragraph{solicitud}
+\begin{itemize}[labelsep=0.6cm, labelwidth=3.8cm, leftmargin=!, itemsep=3pt, topsep=2pt]
+  \item[\textbf{id}] BIGINT, PK, \textit{auto\_increment}, \textit{unique}, \textit{not null}.
+  \item[\textbf{usuario\_id}] BIGINT, FK $\rightarrow$ \texttt{usuario.id}, \textit{not null}, \textit{indexed} (\texttt{solicitudIDX1}).
+  \item[\textbf{tipo}] VARCHAR(30), \textit{not null}. \texttt{VENTANA | PRESTAMO | RENOVACION}.
+  \item[\textbf{estado}] VARCHAR(20), \textit{not null}, \textit{default} \texttt{PENDIENTE}. \texttt{PENDIENTE | APROBADA | RECHAZADA}.
+  \item[\textbf{registro\_instante}] DATETIME, \textit{not null}, \textit{default} \texttt{CURRENT\_TIMESTAMP}.
+\end{itemize}
 
-        \paragraph{item\_solicitud}
-        \begingroup\footnotesize
-        \begin{tabularx}{\linewidth}{@{}l l c l l Y@{}}
-        \toprule
-        \textbf{Campo} & \textbf{Tipo} & \textbf{Nulo} & \textbf{PK/FK} & \textbf{Índice} & \textbf{Descripción / Dominio}\\
-        \midrule
-        solicitud\_id & BIGINT & No & PK (comp.), FK \(\rightarrow\) \texttt{solicitud.id} & Sí & Referencia a la cabecera de la solicitud.\\
-        item\_id & BIGINT & No & PK (comp.), FK \(\rightarrow\) \texttt{item.id} & Sí (item\_solicitudIDX1) & Referencia al tipo de ítem solicitado.\\
-        cantidad & INTEGER & No & \NA &  & Cantidad solicitada de ese tipo de ítem (CHECK cantidad \(>\) 0).\\
-        registro\_instante & DATETIME & No & \NA & default CURRENT\_TIMESTAMP & Fecha y hora de creación de esta línea de detalle.\\
-        \bottomrule
-        \end{tabularx}
-        \endgroup
+\paragraph{item\_solicitud}
+\begin{itemize}[labelsep=0.6cm, labelwidth=3.8cm, leftmargin=!, itemsep=3pt, topsep=2pt]
+  \item[\textbf{solicitud\_id}] BIGINT, PK (comp.), FK $\rightarrow$ \texttt{solicitud.id}, \textit{not null}, \textit{indexed}.
+  \item[\textbf{item\_id}] BIGINT, PK (comp.), FK $\rightarrow$ \texttt{item.id}, \textit{not null}, \textit{indexed} (\texttt{item\_solicitudIDX1}).
+  \item[\textbf{cantidad}] INTEGER, \textit{not null}, \textit{CHECK} (cantidad $>$ 0).
+  \item[\textbf{registro\_instante}] DATETIME, \textit{not null}, \textit{default} \texttt{CURRENT\_TIMESTAMP}.
+\end{itemize}
 
-        \paragraph{prestamo}
-        \begingroup\footnotesize
-        \begin{tabularx}{\linewidth}{@{}l l c l l Y@{}}
-        \toprule
-        \textbf{Campo} & \textbf{Tipo} & \textbf{Nulo} & \textbf{PK/FK} & \textbf{Índice} & \textbf{Descripción / Dominio}\\
-        \midrule
-        id & BIGINT & No & PK & Sí (PK), auto\_increment, unique & Identificador único del préstamo.\\
-        item\_existencia\_id & BIGINT & No & FK \(\rightarrow\) \texttt{item\_existencia.id} & Sí (prestamoIDX1) & Referencia a la copia física específica que se prestó.\\
-        solicitud\_id & BIGINT & No & FK \(\rightarrow\) \texttt{solicitud.id} & Sí & Referencia a la solicitud que originó el préstamo.\\
-        fecha\_prestamo & DATETIME & No & \NA &  & Fecha y hora exactas en que se realizó el préstamo.\\
-        fecha\_devolucion & DATETIME & Sí & \NA &  & Fecha límite pactada para la devolución, o fecha real si ya fue devuelto.\\
-        comentario & TEXT & Sí & \NA &  & Observaciones adicionales sobre el préstamo o devolución.\\
-        estado & VARCHAR(20) & No & \NA &  & Estado actual del préstamo: 'ACTIVO', 'DEVUELTO', 'VENCIDO', 'PERDIDO'.\\
-        renovaciones\_realizadas & INTEGER & No & \NA & default 0 & Contador de cuántas veces se ha renovado el préstamo.\\
-        registro\_instante & DATETIME & No & \NA & default CURRENT\_TIMESTAMP & Fecha y hora de creación del registro de préstamo.\\
-        \bottomrule
-        \end{tabularx}
-        \endgroup
+\paragraph{prestamo}
+\begingroup\footnotesize
+\begin{itemize}[labelsep=0.6cm, labelwidth=3.8cm, leftmargin=!, itemsep=3pt, topsep=2pt]
+  \item[\textbf{id}] BIGINT, PK, \textit{auto\_increment}, \textit{unique}, \textit{not null}.
+  \item[\textbf{item\_existencia\_id}] BIGINT, FK $\rightarrow$ \texttt{item\_existencia.id}, \textit{not null}, \textit{indexed} (\texttt{prestamoIDX1}).
+  \item[\textbf{solicitud\_id}] BIGINT, FK $\rightarrow$ \texttt{solicitud.id}, \textit{not null}, \textit{indexed}.
+  \item[\textbf{fecha\_prestamo}] DATETIME, \textit{not null}.
+  \item[\textbf{fecha\_devolucion}] DATETIME, \textit{nullable}. Límite pactado o fecha real.
+  \item[\textbf{comentario}] TEXT, \textit{nullable}.
+  \item[\textbf{estado}] VARCHAR(20), \textit{not null}. \texttt{ACTIVO | DEVUELTO | VENCIDO | PERDIDO}.
+  \item[\textbf{renovaciones\_realizadas}] INTEGER, \textit{not null}, \textit{default} 0.
+  \item[\textbf{registro\_instante}] DATETIME, \textit{not null}, \textit{default} \texttt{CURRENT\_TIMESTAMP}.
+\end{itemize}
+\endgroup
 
-        \paragraph{atraso}
-        \begingroup\footnotesize
-        \begin{tabularx}{\linewidth}{@{}l l c l l Y@{}}
-        \toprule
-        \textbf{Campo} & \textbf{Tipo} & \textbf{Nulo} & \textbf{PK/FK} & \textbf{Índice} & \textbf{Descripción / Dominio}\\
-        \midrule
-        id & BIGINT & No & PK & Sí (PK), auto\_increment, unique & Identificador único del registro de atraso.\\
-        prestamo\_id & BIGINT & No & FK \(\rightarrow\) \texttt{prestamo.id} & Sí (atrasoIDX1) & Referencia al préstamo que generó el atraso.\\
-        dias\_atraso & INTEGER & No & \NA &  & Número de días de atraso calculados (CHECK dias\_atraso \(>\) 0).\\
-        estado & VARCHAR(20) & No & \NA &  & Estado del atraso: 'PENDIENTE', 'NOTIFICADO', 'PAGADO', 'NO\_PAGADO'.\\
-        registro\_instante & DATETIME & No & \NA & default CURRENT\_TIMESTAMP & Fecha y hora en que se detectó y registró el atraso.\\
-        \bottomrule
-        \end{tabularx}
-        \endgroup
+\paragraph{atraso}
+\begin{itemize}[labelsep=0.6cm, labelwidth=3.8cm, leftmargin=!, itemsep=3pt, topsep=2pt]
+  \item[\textbf{id}] BIGINT, PK, \textit{auto\_increment}, \textit{unique}, \textit{not null}.
+  \item[\textbf{prestamo\_id}] BIGINT, FK $\rightarrow$ \texttt{prestamo.id}, \textit{not null}, \textit{indexed} (\texttt{atrasoIDX1}).
+  \item[\textbf{dias\_atraso}] INTEGER, \textit{not null}, \textit{CHECK} (dias\_atraso $>$ 0).
+  \item[\textbf{estado}] VARCHAR(20), \textit{not null}. \texttt{PENDIENTE | NOTIFICADO | PAGADO | NO\_PAGADO}.
+  \item[\textbf{registro\_instante}] DATETIME, \textit{not null}, \textit{default} \texttt{CURRENT\_TIMESTAMP}.
+\end{itemize}
 
-        \paragraph{multa}
-        \begingroup\footnotesize
-        \begin{tabularx}{\linewidth}{@{}l l c l l Y@{}}
-        \toprule
-        \textbf{Campo} & \textbf{Tipo} & \textbf{Nulo} & \textbf{PK/FK} & \textbf{Índice} & \textbf{Descripción / Dominio}\\
-        \midrule
-        id & BIGINT & No & PK & Sí (PK), auto\_increment, unique & Identificador único de la multa.\\
-        prestamo\_id & BIGINT & No & FK \(\rightarrow\) \texttt{prestamo.id} & Sí (multaIDX1) & Referencia al préstamo asociado a la multa.\\
-        motivo & VARCHAR(20) & No & \NA &  & Causa de la multa: 'ATRASO', 'DANNOS', 'ROBO', 'PERDIDA'.\\
-        valor & DECIMAL(10,2) & No & \NA &  & Monto de la multa (CHECK valor \(>\) 0).\\
-        estado & VARCHAR(20) & No & \NA &  & Estado de la multa: 'PENDIENTE', 'NOTIFICADO', 'PAGADO', 'NO\_PAGADO'.\\
-        registro\_instante & DATETIME & No & \NA & default CURRENT\_TIMESTAMP & Fecha y hora en que se generó la multa.\\
-        \bottomrule
-        \end{tabularx}
-        \endgroup
+\paragraph{multa}
+\begin{itemize}[labelsep=0.6cm, labelwidth=3.8cm, leftmargin=!, itemsep=3pt, topsep=2pt]
+  \item[\textbf{id}] BIGINT, PK, \textit{auto\_increment}, \textit{unique}, \textit{not null}.
+  \item[\textbf{prestamo\_id}] BIGINT, FK $\rightarrow$ \texttt{prestamo.id}, \textit{not null}, \textit{indexed} (\texttt{multaIDX1}).
+  \item[\textbf{motivo}] VARCHAR(20), \textit{not null}. \texttt{ATRASO | DANOS | ROBO | PERDIDA}.
+  \item[\textbf{valor}] DECIMAL(10,2), \textit{not null}, \textit{CHECK} (valor $>$ 0).
+  \item[\textbf{estado}] VARCHAR(20), \textit{not null}. \texttt{PENDIENTE | NOTIFICADO | PAGADO | NO\_PAGADO}.
+  \item[\textbf{registro\_instante}] DATETIME, \textit{not null}, \textit{default} \texttt{CURRENT\_TIMESTAMP}.
+\end{itemize}
 
-        \paragraph{ventana}
-        \begingroup\footnotesize
-        \begin{tabularx}{\linewidth}{@{}l l c l l Y@{}}
-        \toprule
-        \textbf{Campo} & \textbf{Tipo} & \textbf{Nulo} & \textbf{PK/FK} & \textbf{Índice} & \textbf{Descripción / Dominio}\\
-        \midrule
-        id & BIGINT & No & PK & Sí (PK), auto\_increment, unique & Identificador único de la ventana de reserva.\\
-        solicitud\_id & BIGINT & No & FK \(\rightarrow\) \texttt{solicitud.id} & Sí & Referencia a la solicitud de tipo 'VENTANA' que la originó.\\
-        item\_existencia\_id & BIGINT & No & FK \(\rightarrow\) \texttt{item\_existencia.id} & Sí & Referencia a la copia física específica reservada.\\
-        inicio & DATETIME & No & \NA &  & Fecha y hora de inicio del período de reserva para retiro.\\
-        fin & DATETIME & No & \NA &  & Fecha y hora de fin del período de reserva (CHECK fin \(>\) inicio).\\
-        \bottomrule
-        \end{tabularx}
-        \endgroup
+\paragraph{ventana}
+\begin{itemize}[labelsep=0.6cm, labelwidth=3.8cm, leftmargin=!, itemsep=3pt, topsep=2pt]
+  \item[\textbf{id}] BIGINT, PK, \textit{auto\_increment}, \textit{unique}, \textit{not null}.
+  \item[\textbf{solicitud\_id}] BIGINT, FK $\rightarrow$ \texttt{solicitud.id}, \textit{not null}, \textit{indexed}. Debe ser de tipo \texttt{VENTANA}.
+  \item[\textbf{item\_existencia\_id}] BIGINT, FK $\rightarrow$ \texttt{item\_existencia.id}, \textit{not null}, \textit{indexed}.
+  \item[\textbf{inicio}] DATETIME, \textit{not null}.
+  \item[\textbf{fin}] DATETIME, \textit{not null}, \textit{CHECK} (fin $>$ inicio).
+\end{itemize}
 
-        \paragraph{lista\_espera}
-        \begingroup\footnotesize
-        \begin{tabularx}{\linewidth}{@{}l l c l l Y@{}}
-        \toprule
-        \textbf{Campo} & \textbf{Tipo} & \textbf{Nulo} & \textbf{PK/FK} & \textbf{Índice} & \textbf{Descripción / Dominio}\\
-        \midrule
-        id & BIGINT & No & PK & Sí (PK), auto\_increment, unique & Identificador único del registro en la lista de espera.\\
-        solicitud\_id & BIGINT & No & FK \(\rightarrow\) \texttt{solicitud.id} & Sí & Referencia a la solicitud del usuario que espera.\\
-        item\_id & BIGINT & No & FK \(\rightarrow\) \texttt{item.id} & Sí & Referencia al tipo de ítem que se espera.\\
-        fecha\_ingreso & DATETIME & No & \NA & Sí (lista\_esperaIDX3) & Fecha y hora en que el usuario ingresó a la lista.\\
-        estado & VARCHAR(20) & No & \NA & default 'EN\_ESPERA' & Estado en la lista: 'EN\_ESPERA', 'CANCELADA', 'ATENDIDA'.\\
-        registro\_instante & DATETIME & No & \NA & default CURRENT\_TIMESTAMP & Fecha y hora de creación de este registro.\\
-        \bottomrule
-        \end{tabularx}
-        \endgroup
+\paragraph{lista\_espera}
+\begin{itemize}[labelsep=0.6cm, labelwidth=3.8cm, leftmargin=!, itemsep=3pt, topsep=2pt]
+  \item[\textbf{id}] BIGINT, PK, \textit{auto\_increment}, \textit{unique}, \textit{not null}.
+  \item[\textbf{solicitud\_id}] BIGINT, FK $\rightarrow$ \texttt{solicitud.id}, \textit{not null}, \textit{indexed}.
+  \item[\textbf{item\_id}] BIGINT, FK $\rightarrow$ \texttt{item.id}, \textit{not null}, \textit{indexed}.
+  \item[\textbf{fecha\_ingreso}] DATETIME, \textit{not null}, \textit{indexed} (\texttt{lista\_esperaIDX3}).
+  \item[\textbf{estado}] VARCHAR(20), \textit{not null}, \textit{default} \texttt{EN\_ESPERA}. \texttt{EN\_ESPERA | CANCELADA | ATENDIDA}.
+  \item[\textbf{registro\_instante}] DATETIME, \textit{not null}, \textit{default} \texttt{CURRENT\_TIMESTAMP}.
+\end{itemize}
 
-        \paragraph{configuracion\_sistema}
-        \begingroup\footnotesize
-        \begin{tabularx}{\linewidth}{@{}l l c l l Y@{}}
-        \toprule
-        \textbf{Campo} & \textbf{Tipo} & \textbf{Nulo} & \textbf{PK/FK} & \textbf{Índice} & \textbf{Descripción / Dominio}\\
-        \midrule
-        id & BIGINT & No & PK & Sí (PK), auto\_increment, unique & Identificador único del parámetro de configuración.\\
-        clave & VARCHAR(50) & No & \NA & Único & Nombre clave del parámetro (ej: 'max\_renovaciones\_usuario').\\
-        valor & VARCHAR(100) & No & \NA &  & Valor del parámetro (como string, ej: '3', '24', '1000.00').\\
-        descripcion & TEXT & Sí & \NA &  & Descripción opcional del propósito del parámetro.\\
-        registro\_instante & DATETIME & No & \NA & default CURRENT\_TIMESTAMP & Fecha y hora de creación o última modificación del parámetro.\\
-        \bottomrule
-        \end{tabularx}
-        \endgroup
+\paragraph{configuracion\_sistema}
+\begin{itemize}[labelsep=0.6cm, labelwidth=3.8cm, leftmargin=!, itemsep=3pt, topsep=2pt]
+  \item[\textbf{id}] BIGINT, PK, \textit{auto\_increment}, \textit{unique}, \textit{not null}.
+  \item[\textbf{clave}] VARCHAR(50), \textit{unique}, \textit{not null}. Ej.: \texttt{max\_renovaciones\_usuario}.
+  \item[\textbf{valor}] VARCHAR(100), \textit{not null}. Valor (string) interpretado por servicio consumidor.
+  \item[\textbf{descripcion}] TEXT, \textit{nullable}. Descripción del parámetro.
+  \item[\textbf{registro\_instante}] DATETIME, \textit{not null}, \textit{default} \texttt{CURRENT\_TIMESTAMP}.
+\end{itemize}
 
-        \paragraph*{Lógica y uso de configuracion\_sistema} \mbox{}
-        \begingroup\footnotesize
-        \begin{itemize}
-          \item \textbf{Propósito}: Almacén centralizado clave–valor para parámetros operativos y de negocio, permitiendo ajustes sin modificar el código o esquema de BD. La clave es única y el valor se interpreta según la lógica del servicio que lo consume.
-          \item \textbf{Lectura}: Los servicios consultan estos parámetros en tiempo de ejecución para aplicar reglas de negocio (ej: calcular multas, verificar límites de renovación, determinar caducidad de reservas).
-          \item \textbf{Ejemplos de Claves}: \texttt{max\_renovaciones\_usuario}, \texttt{horas\_expiracion\_reserva}, \texttt{valor\_multa\_por\_dia\_atraso}, \texttt{dias\_notificacion\_devolucion\_proxima}, \texttt{tiempo\_bloqueo\_usuario\_deudor\_dias}.
-        \end{itemize}
-        \endgroup
+\paragraph*{Lógica y uso de \texttt{configuracion\_sistema}} \mbox{}
+\begingroup\footnotesize
+\begin{itemize}
+  \item \textbf{Propósito}: Almacén clave–valor para parámetros operativos sin alterar código ni esquema.
+  \item \textbf{Lectura}: Consultado en tiempo de ejecución para reglas de negocio (multas, límites, caducidad).
+  \item \textbf{Ejemplos de claves}: \texttt{max\_renovaciones\_usuario}, \texttt{horas\_expiracion\_reserva}, \texttt{valor\_multa\_por\_dia\_atraso}, \texttt{dias\_notificacion\_devolucion\_proxima}, \texttt{tiempo\_bloqueo\_usuario\_deudor\_dias}.
+\end{itemize}
+\endgroup
+
+    
 
 \newpage % Salto de página antes de la siguiente sección
 
@@ -600,7 +523,7 @@
 
     \subsubsection{Resumen general de servicios}
         Los servicios implementados cubren las funcionalidades principales del sistema:
-        \begin{longtable}{@{}lll@{}}
+        \begin{longtable}{@{}p{3.5cm}p{4cm}p{7.5cm}@{}}
         \toprule
         \textbf{Dominio} & \textbf{Servicio (Nombre Bus)} & \textbf{Función principal} \\ \midrule
         Reportes & \texttt{gerep} & Generación de reportes históricos y de circulación. \\
@@ -616,7 +539,7 @@
 
         \paragraph{1. Servicio de Reportes (\texttt{gerep})} \mbox{}\\
         \textbf{Responsabilidad:} Generar reportes de historial y métricas de circulación. Comunica con la BD para obtener los datos necesarios.
-        \begin{longtable}{@{}ll@{}}
+        \begin{longtable}{@{}p{4.5cm}p{10.5cm}@{}}
             \toprule
             \textbf{Operación (en DATOS)} & \textbf{Descripción} \\
             \midrule
@@ -641,7 +564,7 @@
 
         \paragraph{2. Servicio de Lista de Espera (\texttt{lista})} \mbox{}\\
         \textbf{Responsabilidad:} Administrar la cola de usuarios esperando por ítems no disponibles.
-        \begin{longtable}{@{}ll@{}}
+        \begin{longtable}{@{}p{4.5cm}p{10.5cm}@{}}
         \toprule
         \textbf{Operación (en DATOS)} & \textbf{Descripción} \\ \midrule
         \texttt{create\_lista\_espera} & Agrega un registro a la lista de espera asociado a una solicitud y un ítem. Payload: \texttt{\{"solicitud\_id": id, "item\_id": id, "estado": "EN ESPERA"\}}. \\
@@ -665,7 +588,7 @@
 
         \paragraph{3. Servicio de Multas (\texttt{multa})} \mbox{}\\
         \textbf{Responsabilidad:} Registrar, administrar multas y gestionar el estado (bloqueo) de los usuarios.
-        \begin{longtable}{@{}ll@{}}
+        \begin{longtable}{@{}p{4.5cm}p{10.5cm}@{}}
         \toprule
         \textbf{Operación (en DATOS)} & \textbf{Descripción} \\ \midrule
         \texttt{get\_multas\_usuario} & Obtiene todas las multas asociadas a un usuario específico. Payload: \texttt{\{"usuario\_id": id\}}. \\
@@ -686,18 +609,10 @@
             \caption{Tabla Multa}
             \label{fig:multadb}
         \end{figure}
-        
-        % Espacio para imagen de multa
-        \begin{figure}[H]
-            \centering
-            % \includegraphics[width=0.8\linewidth]{img/multa_op_ejemplo.png}
-            \fbox{Espacio para imagen: Flujo operación crear\_multa} % Placeholder
-            \caption{}
-        \end{figure}
 
         \paragraph{4. Servicio de Notificaciones (\texttt{notis})} \mbox{}\\
         \textbf{Responsabilidad:} Registrar notificaciones destinadas a usuarios y gestionar sus preferencias de canal. (El envío real no está implementado).
-        \begin{longtable}{@{}ll@{}}
+        \begin{longtable}{@{}p{4.5cm}p{10.5cm}@{}}
         \toprule
         \textbf{Operación (en DATOS)} & \textbf{Descripción} \\ \midrule
         \texttt{crear\_notificacion} & Registra una notificación en la base de datos para un usuario. Payload: \texttt{\{"usuario\_id": id, "canal": int, "tipo": "...", "mensaje": "..."\}}. \\
@@ -712,29 +627,9 @@
             \label{fig:notis}
         \end{figure}
 
-        \begin{figure}[H]
-            \centering
-            \includegraphics[width=1\linewidth]{img/dbnotispng}
-            \caption{Tabla Notificacion}
-            \label{fig:notisdb}
-        \end{figure}
-        
-        % Espacio para imagen de notis
-        \begin{figure}[H]
-            \centering
-            % \includegraphics[width=0.8\linewidth]{img/notis_op_ejemplo.png}
-            \begin{figure}
-                \centering
-                \includegraphics[width=1.0\linewidth]{notis.jpg}
-                \caption{log de SOA\_bus de notis}
-                \label{fig:placeholder}
-            \end{figure}
-            \caption{}
-        \end{figure}
-
         \paragraph{5. Servicio de Préstamos y Artículos (\texttt{prart})} \mbox{}\\
         \textbf{Responsabilidad:} Gestionar el catálogo, inventario, solicitudes, reservas, préstamos y devoluciones.
-        \begin{longtable}{@{}ll@{}}
+        \begin{longtable}{@{}p{4.5cm}p{10.5cm}@{}}
         \toprule
         \textbf{Operación (en DATOS)} & \textbf{Descripción} \\ \midrule
         \texttt{get\_all\_items} & Obtiene todos los tipos de ítems del catálogo. Payload: \texttt{\{\}}. \\
@@ -742,7 +637,7 @@
         \texttt{get\_solicitudes} & Obtiene las solicitudes realizadas por un usuario específico (identificado por ID o correo). Payload: \texttt{\{"usuario\_id": id\}} o \texttt{\{"correo": "..."\}}. \\
         \texttt{create\_solicitud} & Crea una nueva solicitud (de tipo PRÉSTAMO o VENTANA) para un usuario. Payload: \texttt{\{"usuario\_id": id | "correo": "", "tipo": "PRESTAMO|VENTANA"\}}. \\
         \texttt{create\_reserva} & Crea una ventana de reserva para una existencia específica, asociada a una solicitud de tipo VENTANA. Payload: \texttt{\{"solicitud\_id": id, "item\_existencia\_id": id, "inicio": "ISO", "fin": "ISO"\}}. \\
-        \texttt{cancel\_reserva} & Elimina un registro de reserva (ventana). Payload: \texttt{\{"reserva\_id": id\}}. \\
+        \texttt{cancel\_reserva} & Elimina un registro de reserva (ventana). Payload: \texttt{\{reserva\_id: id\}}. \\
         \texttt{create\_prestamo} & Registra un préstamo, asociando una existencia a una solicitud aprobada. Payload: \texttt{\{"solicitud\_id": id, "item\_existencia\_id": id, "comentario": "..."\}}. \\
         \texttt{create\_devolucion} & Marca un préstamo como devuelto. Payload: \texttt{\{"prestamo\_id": id, "comentario": "..."\}}. \\
         \texttt{renovar\_prestamo} & Extiende el plazo de un préstamo activo. Payload: \texttt{\{"prestamo\_id": id\}}. \\
@@ -765,7 +660,7 @@
 
         \paragraph{6. Servicio de Registro y Usuarios (\texttt{regis})} \mbox{}\\
         \textbf{Responsabilidad:} Gestionar cuentas de usuario, autenticación y aprobación/rechazo de solicitudes.
-        \begin{longtable}{@{}ll@{}}
+        \begin{longtable}{@{}p{4.5cm}p{10.5cm}@{}}
         \toprule
         \textbf{Operación (en DATOS)} & \textbf{Descripción} \\ \midrule
         \texttt{register} & Crea una nueva cuenta de usuario con sus datos y contraseña hasheada. Payload: \texttt{\{"nombre": ..., "correo": ..., "password": ..., "tipo": ..., ...\}}. \\
@@ -791,7 +686,7 @@
 
         \paragraph{7. Servicio de Sugerencias (\texttt{sugit})} \mbox{}\\
         \textbf{Responsabilidad:} Registrar y administrar las sugerencias enviadas por los usuarios.
-        \begin{longtable}{@{}ll@{}}
+        \begin{longtable}{@{}p{4.5cm}p{10.5cm}@{}}
         \toprule
         \textbf{Operación (en DATOS)} & \textbf{Descripción} \\ \midrule
         \texttt{registrar\_sugerencia} & Guarda una nueva sugerencia asociada a un usuario. Payload: \texttt{\{"usuario\_id": id, "sugerencia": "..."\}}. \\
@@ -846,38 +741,6 @@ El sistema PrestaLab expone sus funcionalidades a los usuarios finales a través
 \end{itemize}
 Este enfoque modular y centralizado en la comunicación a través del ESB asegura el desacoplamiento entre la interfaz de usuario y la lógica de negocio distribuida en los microservicios.
 
-\subsection{Componente bus: ESB} \mbox{}
-
-El Enterprise Service Bus (ESB) es el componente neurálgico de la arquitectura SOA de PrestaLab, actuando como intermediario y gestor central para toda la comunicación entre los clientes y los microservicios backend.
-
-\begin{itemize}
-    \item \textbf{Tecnología}: Implementado en Python utilizando el framework \textbf{FastAPI} para la interfaz HTTP y \textbf{SQLite} para la persistencia del registro de servicios, logs y estadísticas.
-    \item \textbf{Responsabilidades Principales}:
-    \begin{itemize}
-        \item \textbf{Registro y Descubrimiento de Servicios}: Mantiene un catálogo actualizado de los microservicios disponibles, sus ubicaciones (URLs) y los endpoints que exponen. Los servicios se registran automáticamente al iniciar. Este registro es persistente gracias a SQLite.
-        \item \textbf{Enrutamiento de Mensajes}: Centraliza la comunicación a través de un endpoint principal (\texttt{POST /route}). Recibe las peticiones de los clientes, identifica el servicio destino solicitado (\texttt{target\_service}) y redirige la petición al microservicio correspondiente según el registro.
-        \item \textbf{Interfaz HTTP RESTful}: Proporciona una interfaz basada en HTTP, facilitando la integración con clientes web y herramientas estándar, en contraste con implementaciones previas basadas en sockets TCP.
-        \item \textbf{Monitoreo y Chequeo de Salud}: Incluye funcionalidades para monitorear la disponibilidad y el estado de los servicios registrados (\texttt{GET /health/\{service\_name\}}), actualizando su estado (ACTIVO, INACTIVO, DEGRADADO) en el registro. Los servicios envían \textit{heartbeats} periódicos (\texttt{POST /heartbeat/\{service\_name\}}) para señalar su actividad.
-        \item \textbf{Persistencia}: Almacena el registro de servicios, un historial de logs de mensajes y estadísticas básicas en una base de datos SQLite (\texttt{bus\_data.db}), permitiendo la recuperación del estado tras reinicios.
-        \item \textbf{Logging y Trazabilidad}: Registra las interacciones (peticiones recibidas, enrutamiento, respuestas) utilizando \textbf{Trace IDs} únicos para facilitar el seguimiento de una transacción completa a través de múltiples componentes. Los logs son visibles en consola con formato y colores distintivos.
-        \item \textbf{Desacoplamiento}: Abstrae la ubicación física y los detalles de comunicación de los microservicios, permitiendo que los clientes interactúen con ellos a través de nombres lógicos sin necesidad de conocer sus URLs directas.
-    \end{itemize}
-    \item \textbf{Endpoints Principales (Puerto 8000)}:
-    \begin{itemize}
-        \item \texttt{GET /}: Información general y endpoints disponibles del bus.
-        \item \texttt{POST /register}: Endpoint para el auto-registro de servicios.
-        \item \texttt{DELETE /unregister/\{service\_name\}}: Endpoint para desregistrar un servicio.
-        \item \texttt{GET /discover}: Lista los servicios actualmente registrados y su estado.
-        \item \texttt{POST /route}: Recibe y enruta las peticiones de los clientes a los servicios destino.
-        \item \texttt{GET /health/\{service\_name\}}: Consulta el estado de salud de un servicio específico.
-        \item \texttt{POST /heartbeat/\{service\_name\}}: Recibe los "latidos" de los servicios activos.
-        \item \texttt{GET /logs}: Proporciona acceso a los logs recientes de mensajes procesados por el bus.
-        \item \texttt{GET /stats}: Ofrece estadísticas operativas del bus (total de servicios, mensajes, errores).
-        \item \texttt{GET /ping}: Endpoint básico para verificar si el bus está operativo.
-        \item \texttt{GET /docs}: Documentación interactiva (Swagger UI) de la API del ESB.
-    \end{itemize}
-\end{itemize}
-El ESB, por lo tanto, no solo facilita la comunicación sino que también aporta capacidades de gestión, monitoreo y resiliencia a la arquitectura SOA del sistema PrestaLab.
 
 \section{Análisis crítico del sistema (entrega 3)}
     \subsection{Problemas identificados}
@@ -891,11 +754,13 @@ El ESB, por lo tanto, no solo facilita la comunicación sino que también aporta
         \subsubsection{Componentes de servicio}
            Para abordar los problemas de comunicación y las complejidades del modelo de datos, se inició la adaptación de cada servicio \mbox{}. La solución principal requería modificar cómo cada servicio se conecta al bus (usando sockets TCP), cómo se registra (\texttt{sinit}), cómo recibe los mensajes (leyendo los 5 bytes de longitud, luego el nombre del servicio y los datos) y cómo envía las respuestas (formateando todo según el protocolo \texttt{NNNNNSSSSSSTDATOS}) \mbox{}. Debido al tiempo que tomó el cambio fundamental del bus, esta adaptación de todos los servicios para que funcionen correctamente con el bus TCP y manejen adecuadamente las interacciones con la base de datos quedó implementada de manera apresurada, sin poder asegurar el funcionamiento perfecto a la fecha de esta entrega.
         \subsubsection{Componentes de cliente}
-            Dado el cambio obligatorio al bus TCP, la solución para el frontend implica rehacer la capa de comunicación (principalmente el archivo \texttt{api.js} y cómo las distintas vistas lo utilizan) para que pueda "hablar" el protocolo \texttt{NNNNNSSSSSDATOS} a través de WebSockets o un intermediario similar, en lugar de usar peticiones HTTP directas al bus ESB. Este trabajo quedó pendiente debido al tiempo que consumió el cambio del bus.
+            Dado el cambio obligatorio al bus TCP, la solución para el frontend implica rehacer la capa de comunicación (principalmente el archivo \texttt{api.js} y cómo las distintas vistas lo utilizan) para que pueda comunicarse el protocolo \texttt{NNNNNSSSSSDATOS} a través de WebSockets o un intermediario similar, en lugar de usar peticiones HTTP directas al bus ESB. Este trabajo quedó pendiente debido al tiempo que consumió el cambio del bus.
         
         \subsubsection{Componente bus: ESB}
-            Para solucionar el problema del bus, adoptamos el bus TCP que se requería \mbox{}. Esto implicó ajustar cómo los servicios (\texttt{servicioSOA.py}) y los clientes (\texttt{clienteSOA.py}, y la lógica en \texttt{api.js} del frontend) se comunican, para que usaran el protocolo \texttt{NNNNNSSSSSDATOS} a través de sockets TCP en lugar de HTTP \mbox{}. Aunque tuvimos que rehacer esa parte y perdimos tiempo, logramos que el sistema se comunicara usando la arquitectura SOA solicitada con el bus TCP funcionando como intermediario central..
-        \subsubsection{Otros}
+            Para solucionar el problema del bus, adoptamos el bus TCP que se requería \mbox{}. Esto implicó ajustar cómo los servicios (\texttt{servicioSOA.py}) y los clientes (\texttt{clienteSOA.py}, y la lógica en \texttt{api.js} del frontend) se comunican, para que usaran el protocolo \texttt{NNNNNSSSSSDATOS} a través de sockets TCP en lugar de HTTP \mbox{}. Aunque tuvimos que rehacer esa parte y perdimos tiempo, logramos que el sistema se comunicara usando la arquitectura SOA solicitada con el bus TCP funcionando como intermediario central.
+
 \section{Anexo}
+
+
   \href{https://github.com/alexisnasus/prestalab_SOA/blob/main}{Repositorio GitHub} 
 \end{document}
