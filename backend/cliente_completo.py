@@ -986,6 +986,7 @@ def menu_admin():
         print("[5] Crear multa")
         print("[6] Bloquear/Desbloquear usuario")
         print("[7] Actualizar estado de item")
+        print("[8] Listar todos los correos de usuarios")
         print("[0] Volver al menú principal")
         
         opcion = input("\n👉 Seleccione una opción: ").strip()
@@ -1004,6 +1005,8 @@ def menu_admin():
             gestionar_bloqueo_usuario()
         elif opcion == "7":
             actualizar_estado_item()
+        elif opcion == "8":
+            listar_todos_correos()
         elif opcion == "0":
             break
         else:
@@ -1201,6 +1204,62 @@ def actualizar_estado_item():
         "estado": estado
     })
     print_response(status, data)
+
+def listar_todos_correos():
+    """Listar todos los correos de usuarios (solo admin)"""
+    print("\n" + "="*60)
+    print("  LISTAR CORREOS DE USUARIOS")
+    print("="*60)
+    
+    print("\nFiltros opcionales (Enter para omitir):")
+    print("\nTipo de usuario:")
+    print("  [1] Estudiante")
+    print("  [2] Profesor")
+    print("  [3] Admin")
+    print("  [Enter] Todos")
+    tipo_op = input("Filtrar por tipo: ").strip()
+    
+    tipo_map = {"1": "ESTUDIANTE", "2": "PROFESOR", "3": "ADMIN"}
+    tipo = tipo_map.get(tipo_op, None)
+    
+    print("\nEstado:")
+    print("  [1] Activo")
+    print("  [2] Bloqueado")
+    print("  [3] Inactivo")
+    print("  [Enter] Todos")
+    estado_op = input("Filtrar por estado: ").strip()
+    
+    estado_map = {"1": "ACTIVO", "2": "BLOQUEADO", "3": "INACTIVO"}
+    estado = estado_map.get(estado_op, None)
+    
+    # Construir payload
+    payload = {}
+    if tipo:
+        payload["tipo"] = tipo
+    if estado:
+        payload["estado"] = estado
+    
+    print("\n⏳ Consultando correos...")
+    status, data = send_to_bus("regis", "get_all_emails", payload)
+    
+    if status == "OK" and data:
+        print_response(status, data, show_success=False)
+        
+        # Mostrar tabla de correos si hay resultados
+        if data.get("correos"):
+            correos = data["correos"]
+            print("\n" + "="*80)
+            print(f"  LISTA DE CORREOS ({len(correos)} usuarios)")
+            print("="*80)
+            print(f"{'ID':<10} {'CORREO':<35} {'NOMBRE':<25} {'TIPO':<12} {'ESTADO':<10}")
+            print("-"*80)
+            
+            for user in correos:
+                print(f"{user.get('id', ''):<10} {user.get('correo', ''):<35} {user.get('nombre', '')[:24]:<25} {user.get('tipo', ''):<12} {user.get('estado', ''):<10}")
+            
+            print("="*80)
+    else:
+        print_response(status, data, show_success=False)
 
 # ============================================
 # MÓDULO: MI PERFIL

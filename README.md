@@ -146,6 +146,7 @@ Las operaciones se invocan enviando el mensaje correspondiente al Bus SOA (puert
   * `get_user {payload}`: Consulta usuario por ID.
   * `update_user {payload}`: Actualiza datos de usuario.
   * `update_solicitud {payload}`: Cambia estado de una solicitud (ej. aprobación).
+  * `get_all_emails {payload}`: Obtiene lista de correos de todos los usuarios (opcional filtro por tipo y estado).
 
 ### `prart` - Préstamos y Artículos
 

@@ -53,6 +53,8 @@ def handle_request(data: str):
             return actualizar_usuario(payload, db_session)
         elif operation == "update_solicitud":
             return actualizar_solicitud_registro(payload, db_session)
+        elif operation == "get_all_emails":
+            return obtener_todos_correos(payload, db_session)
         else:
             return "NK", json.dumps({"error": f"Operación desconocida: {operation}"})
 
@@ -165,6 +167,53 @@ def actualizar_solicitud_registro(payload: dict, db: Session):
     except SQLAlchemyError as e:
         db.rollback()
         return "NK", json.dumps({"error": f"Error al actualizar solicitud: {str(e)}"})
+
+def obtener_todos_correos(payload: dict, db: Session):
+    """
+    Obtiene una lista de todos los correos electrónicos de usuarios registrados.
+    Opcionalmente puede filtrar por tipo de usuario o estado.
+    
+    Payload opcional:
+    - tipo: Filtrar por tipo de usuario (ESTUDIANTE, PROFESOR, ADMIN)
+    - estado: Filtrar por estado (ACTIVO, INACTIVO, BLOQUEADO)
+    """
+    try:
+        # Consulta base
+        query = db.query(Usuario)
+        
+        # Aplicar filtros opcionales
+        if payload.get("tipo"):
+            query = query.filter(Usuario.tipo == payload["tipo"].upper())
+        
+        if payload.get("estado"):
+            query = query.filter(Usuario.estado == payload["estado"].upper())
+        
+        # Obtener usuarios
+        usuarios = query.all()
+        
+        # Crear lista de correos con información adicional
+        correos_list = [
+            {
+                "id": user.id,
+                "correo": user.correo,
+                "nombre": user.nombre,
+                "tipo": user.tipo,
+                "estado": user.estado
+            }
+            for user in usuarios
+        ]
+        
+        response_data = {
+            "message": f"Se encontraron {len(correos_list)} usuarios",
+            "total": len(correos_list),
+            "correos": correos_list
+        }
+        
+        return "OK", json.dumps(response_data)
+        
+    except SQLAlchemyError as e:
+        db.rollback()
+        return "NK", json.dumps({"error": f"Error al consultar correos: {str(e)}"})
 
 # --- Main Loop ---
 
